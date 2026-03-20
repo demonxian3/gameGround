@@ -51,6 +51,17 @@ await page.keyboard.press("Space");
 await page.waitForTimeout(300);
 await capture("tank-play");
 
+await page.click('[data-game="cat"]');
+await page.waitForTimeout(150);
+await capture("cat-initial");
+let target = await page.evaluate(() => window.arcadia.getCatCellCenter(5, 3));
+await page.click("canvas", { position: target });
+await page.waitForTimeout(150);
+target = await page.evaluate(() => window.arcadia.getCatCellCenter(6, 4));
+await page.click("canvas", { position: target });
+await page.waitForTimeout(150);
+await capture("cat-play");
+
 fs.writeFileSync(path.join(outputDir, "states.json"), JSON.stringify(states, null, 2));
 fs.writeFileSync(path.join(outputDir, "errors.json"), JSON.stringify(errors, null, 2));
 

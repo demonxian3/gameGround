@@ -88,6 +88,20 @@ const GAME_META = {
       ["重开", "R"],
     ],
   },
+  cat: {
+    title: "围住神经猫",
+    tags: ["六边形网格", "BFS 寻路", "逐步围堵"],
+    description: [
+      ["目标", "点击灰色圆点生成障碍，阻止神经猫逃到边缘外。"],
+      ["机制", "每次点击后神经猫立即移动一步，并优先走最短逃生路径。"],
+      ["胜负", "围死神经猫即胜利，若它从边缘成功跳出则失败。"],
+    ],
+    controls: [
+      ["落子", "鼠标点击"],
+      ["重开", "R"],
+      ["提示", "观察猫下一步的逃生方向"],
+    ],
+  },
 };
 
 class TetrisGame {
@@ -290,13 +304,26 @@ class TetrisGame {
     ctx.fillStyle = "#08101d";
     ctx.fillRect(0, 0, width, height);
 
+    const shellX = 28;
+    const shellY = 24;
+    const shellWidth = width - 56;
+    const shellHeight = height - 48;
+    const boardHeight = Math.min(shellHeight - 92, 560);
+    const boardWidth = Math.round((this.cols / this.rows) * boardHeight);
+    this.cell = boardHeight / this.rows;
+    this.offsetX = shellX + Math.max(70, shellWidth * 0.17);
+    this.offsetY = shellY + (shellHeight - boardHeight) / 2;
+    const sidePanelX = this.offsetX + boardWidth + 42;
+    const sidePanelY = this.offsetY + 76;
+
     const gradient = ctx.createLinearGradient(0, 0, width, height);
     gradient.addColorStop(0, "rgba(93,244,199,0.18)");
     gradient.addColorStop(1, "rgba(255,111,145,0.08)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
-    drawRoundedRect(this.offsetX - 24, this.offsetY - 24, 344, 624, 28, "rgba(4,8,18,0.78)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(shellX, shellY, shellWidth, shellHeight, 34, "rgba(4,8,18,0.78)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(this.offsetX - 18, this.offsetY - 18, boardWidth + 36, boardHeight + 36, 28, "rgba(6,10,20,0.9)", "rgba(255,255,255,0.06)");
 
     for (let y = 0; y < this.rows; y += 1) {
       for (let x = 0; x < this.cols; x += 1) {
@@ -330,32 +357,25 @@ class TetrisGame {
     }
 
     ctx.fillStyle = "#eef4ff";
-    ctx.font = "700 40px 'Space Grotesk'";
-    ctx.fillText("TETRIS", 510, 130);
-    ctx.font = "500 18px 'Noto Sans SC'";
+    ctx.font = "700 18px 'Space Grotesk'";
+    ctx.fillText("TETRIS", sidePanelX, this.offsetY + 34);
+    ctx.font = "500 17px 'Noto Sans SC'";
     ctx.fillStyle = "#8ea4cb";
-    ctx.fillText("保持版面整洁，快速消行。", 510, 164);
+    ctx.fillText("保持版面整洁，快速消行。", sidePanelX, this.offsetY + 64);
 
-    drawRoundedRect(500, 210, 250, 150, 24, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(sidePanelX, sidePanelY, 190, 128, 24, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
     ctx.fillStyle = "#ffb86b";
     ctx.font = "600 14px 'Space Grotesk'";
-    ctx.fillText("NEXT", 526, 244);
-    this.drawPreview(this.next, 530, 268);
+    ctx.fillText("NEXT", sidePanelX + 24, sidePanelY + 34);
+    this.drawPreview(this.next, sidePanelX + 24, sidePanelY + 58);
 
-    const stats = [
-      ["Score", this.score],
-      ["Lines", this.lines],
-      ["Level", this.level],
-    ];
-    stats.forEach(([label, value], index) => {
-      drawRoundedRect(500, 392 + index * 72, 250, 56, 20, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
-      ctx.fillStyle = "#8ea4cb";
-      ctx.font = "500 15px 'Space Grotesk'";
-      ctx.fillText(label, 526, 426 + index * 72);
-      ctx.fillStyle = "#eef4ff";
-      ctx.font = "700 24px 'Space Grotesk'";
-      ctx.fillText(String(value), 650, 426 + index * 72);
-    });
+    drawRoundedRect(shellX + 32, shellY + shellHeight - 72, shellWidth - 64, 44, 18, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
+    ctx.fillStyle = "#ffd86b";
+    ctx.font = "700 15px 'Space Grotesk'";
+    ctx.fillText("STACK", shellX + 54, shellY + shellHeight - 44);
+    ctx.fillStyle = "#eef4ff";
+    ctx.font = "500 14px 'Noto Sans SC'";
+    ctx.fillText("提前整理凹槽，留出长条位，连续消行更稳。", shellX + 128, shellY + shellHeight - 44);
 
     if (this.gameOver) {
       drawRoundedRect(150, 280, 300, 120, 24, "rgba(5,9,18,0.85)", "rgba(255,111,145,0.5)");
@@ -493,12 +513,17 @@ class SnakeGame {
     ctx.fillStyle = "#05101d";
     ctx.fillRect(0, 0, width, height);
 
-    const boardSize = Math.min(height - 120, width - 280);
-    const startX = 110;
-    const startY = 70;
+    const shellX = 28;
+    const shellY = 24;
+    const shellWidth = width - 56;
+    const shellHeight = height - 48;
+    const boardSize = Math.min(shellHeight - 92, shellWidth - 96);
+    const startX = shellX + (shellWidth - boardSize) / 2;
+    const startY = shellY + 48;
     const cell = boardSize / this.cols;
 
-    drawRoundedRect(startX - 20, startY - 20, boardSize + 40, boardSize + 40, 30, "rgba(8,18,35,0.84)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(shellX, shellY, shellWidth, shellHeight, 32, "rgba(8,18,35,0.84)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(startX - 16, startY - 16, boardSize + 32, boardSize + 32, 28, "rgba(8,18,35,0.68)", "rgba(255,255,255,0.05)");
 
     for (let y = 0; y < this.rows; y += 1) {
       for (let x = 0; x < this.cols; x += 1) {
@@ -548,27 +573,13 @@ class SnakeGame {
       );
     });
 
+    drawRoundedRect(shellX + 26, shellY + shellHeight - 78, shellWidth - 52, 48, 18, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
+    ctx.fillStyle = "#ffd86b";
+    ctx.font = "700 15px 'Space Grotesk'";
+    ctx.fillText("FLOW", shellX + 48, shellY + shellHeight - 48);
     ctx.fillStyle = "#eef4ff";
-    ctx.font = "700 40px 'Space Grotesk'";
-    ctx.fillText("SNAKE", width - 280, 140);
-    ctx.font = "500 17px 'Noto Sans SC'";
-    ctx.fillStyle = "#8ea4cb";
-    ctx.fillText("保持路线清晰，抢吃能量。", width - 280, 172);
-
-    [
-      ["Score", this.score],
-      ["Best", this.best],
-      ["Length", this.snake.length],
-      ["Obstacles", this.obstacles.length],
-    ].forEach(([label, value], index) => {
-      drawRoundedRect(width - 300, 220 + index * 82, 210, 60, 20, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
-      ctx.fillStyle = "#8ea4cb";
-      ctx.font = "500 15px 'Space Grotesk'";
-      ctx.fillText(label, width - 272, 255 + index * 82);
-      ctx.fillStyle = "#eef4ff";
-      ctx.font = "700 26px 'Space Grotesk'";
-      ctx.fillText(String(value), width - 150, 255 + index * 82);
-    });
+    ctx.font = "500 14px 'Noto Sans SC'";
+    ctx.fillText("吃到能量核心会变长，按 Space 可短时冲刺。", shellX + 120, shellY + shellHeight - 48);
 
     if (this.gameOver) {
       drawRoundedRect(width / 2 - 160, height / 2 - 80, 320, 150, 28, "rgba(5,9,18,0.88)", "rgba(255,111,145,0.4)");
@@ -739,13 +750,18 @@ class TankGame {
     ctx.fillStyle = this.flash > 0 ? "rgba(255,111,145,0.14)" : "#091321";
     ctx.fillRect(0, 0, width, height);
 
+    const shellX = 28;
+    const shellY = 24;
+    const shellWidth = width - 56;
+    const shellHeight = height - 48;
+
     for (let x = 0; x < width; x += 64) {
       for (let y = 0; y < height; y += 64) {
         drawRoundedRect(x + 8, y + 8, 48, 48, 12, (x + y) % 128 ? "rgba(255,255,255,0.03)" : "rgba(93,244,199,0.05)", null);
       }
     }
 
-    drawRoundedRect(60, 60, width - 120, height - 120, 32, "rgba(7,14,26,0.22)", "rgba(255,255,255,0.08)");
+    drawRoundedRect(shellX, shellY, shellWidth, shellHeight, 32, "rgba(7,14,26,0.22)", "rgba(255,255,255,0.08)");
 
     this.drawTank(this.player, "#5df4c7", "#c2fff0");
     this.enemies.forEach((enemy) => this.drawTank(enemy, "#ff6f91", "#ffd7e1"));
@@ -758,26 +774,19 @@ class TankGame {
     });
 
     ctx.fillStyle = "#eef4ff";
-    ctx.font = "700 38px 'Space Grotesk'";
-    ctx.fillText("TANK ARENA", 90, 120);
+    ctx.font = "700 16px 'Space Grotesk'";
+    ctx.fillText("COMBAT FIELD", shellX + 28, shellY + 28);
     ctx.font = "500 17px 'Noto Sans SC'";
     ctx.fillStyle = "#8ea4cb";
-    ctx.fillText("边移动边开火，清空敌方单位。", 92, 152);
+    ctx.fillText("边移动边开火，清空敌方单位。", shellX + 28, shellY + 56);
 
-    [
-      ["HP", this.player.hp],
-      ["Enemies", this.enemies.length],
-      ["Score", this.score],
-      ["Cooldown", this.player.cooldown > 0 ? this.player.cooldown.toFixed(2) : "Ready"],
-    ].forEach(([label, value], index) => {
-      drawRoundedRect(710, 92 + index * 72, 160, 54, 18, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
-      ctx.fillStyle = "#8ea4cb";
-      ctx.font = "500 14px 'Space Grotesk'";
-      ctx.fillText(label, 734, 124 + index * 72);
-      ctx.fillStyle = "#eef4ff";
-      ctx.font = "700 22px 'Space Grotesk'";
-      ctx.fillText(String(value), 810, 124 + index * 72);
-    });
+    drawRoundedRect(shellX + 24, shellY + shellHeight - 72, shellWidth - 48, 44, 18, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
+    ctx.fillStyle = "#ffd86b";
+    ctx.font = "700 15px 'Space Grotesk'";
+    ctx.fillText("TACTIC", shellX + 46, shellY + shellHeight - 44);
+    ctx.fillStyle = "#eef4ff";
+    ctx.font = "500 14px 'Noto Sans SC'";
+    ctx.fillText("保持移动避免被集火，冷却结束后立即压制敌方火力。", shellX + 122, shellY + shellHeight - 44);
 
     if (this.win || this.gameOver) {
       drawRoundedRect(width / 2 - 170, height / 2 - 90, 340, 170, 28, "rgba(5,9,18,0.88)", this.win ? "rgba(93,244,199,0.45)" : "rgba(255,111,145,0.45)");
@@ -828,10 +837,412 @@ class TankGame {
   }
 }
 
+class CircleTheCatGame {
+  constructor() {
+    this.size = 11;
+    this.radius = 18;
+    this.verticalSpacing = 30;
+    this.offsetX = 140;
+    this.offsetY = 120;
+    this.palette = {
+      open: "#b8c5da",
+      blocked: "#ff9f43",
+      cat: "#1d2a44",
+      catFace: "#f3f7ff",
+      win: "#5df4c7",
+      lose: "#ff6f91",
+    };
+    this.pointer = null;
+    this.lastClicked = null;
+    this.reset();
+  }
+
+  reset() {
+    this.grid = Array.from({ length: this.size }, () => Array(this.size).fill(0));
+    this.cat = { row: Math.floor(this.size / 2), col: Math.floor(this.size / 2) };
+    this.status = "playing";
+    this.message = "点击灰色圆点，围住神经猫。";
+    this.turns = 0;
+    this.lastEscapeRoute = [];
+    this.lastMove = null;
+    this.hoverCell = null;
+    this.placeInitialBlocks();
+  }
+
+  placeInitialBlocks() {
+    const blockedCount = randomInt(8, 12);
+    let placed = 0;
+    while (placed < blockedCount) {
+      const row = randomInt(0, this.size - 1);
+      const col = randomInt(0, this.size - 1);
+      if ((row === this.cat.row && col === this.cat.col) || this.grid[row][col] === 1) continue;
+      this.grid[row][col] = 1;
+      placed += 1;
+    }
+  }
+
+  isInside(row, col) {
+    return row >= 0 && row < this.size && col >= 0 && col < this.size;
+  }
+
+  isEdge(row, col) {
+    return row === 0 || col === 0 || row === this.size - 1 || col === this.size - 1;
+  }
+
+  getNeighbors(row, col) {
+    this.updateLayout();
+    const origin = this.getCellCenter(row, col);
+    const maxNeighborDistance = this.radius * 2.12;
+    const neighbors = [];
+
+    for (let nextRow = Math.max(0, row - 1); nextRow <= Math.min(this.size - 1, row + 1); nextRow += 1) {
+      for (let nextCol = Math.max(0, col - 1); nextCol <= Math.min(this.size - 1, col + 1); nextCol += 1) {
+        if (nextRow === row && nextCol === col) continue;
+        const center = this.getCellCenter(nextRow, nextCol);
+        const distance = Math.hypot(center.x - origin.x, center.y - origin.y);
+        if (distance <= maxNeighborDistance) neighbors.push({ row: nextRow, col: nextCol, distance });
+      }
+    }
+
+    return neighbors
+      .sort((a, b) => a.distance - b.distance || a.row - b.row || a.col - b.col)
+      .slice(0, 6)
+      .map(({ row: nextRow, col: nextCol }) => ({ row: nextRow, col: nextCol }));
+  }
+
+  isNeighbor(from, to) {
+    return this.getNeighbors(from.row, from.col).some((cell) => cell.row === to.row && cell.col === to.col);
+  }
+
+  findShortestEscapePath() {
+    const start = this.cat;
+    const queue = [{ row: start.row, col: start.col, path: [{ row: start.row, col: start.col }] }];
+    const visited = new Set([`${start.row},${start.col}`]);
+    const edgePaths = [];
+
+    while (queue.length) {
+      const current = queue.shift();
+      if (this.isEdge(current.row, current.col)) {
+        edgePaths.push(current.path);
+        continue;
+      }
+
+      this.getNeighbors(current.row, current.col).forEach((next) => {
+        const key = `${next.row},${next.col}`;
+        if (visited.has(key) || this.grid[next.row][next.col] === 1) return;
+        visited.add(key);
+        queue.push({
+          row: next.row,
+          col: next.col,
+          path: [...current.path, next],
+        });
+      });
+    }
+
+    if (!edgePaths.length) return null;
+    edgePaths.sort((a, b) => a.length - b.length || this.distanceToNearestEdge(a[a.length - 1]) - this.distanceToNearestEdge(b[b.length - 1]));
+    return edgePaths[0];
+  }
+
+  distanceToNearestEdge(cell) {
+    return Math.min(cell.row, cell.col, this.size - 1 - cell.row, this.size - 1 - cell.col);
+  }
+
+  chooseFallbackMove() {
+    const moves = this.getNeighbors(this.cat.row, this.cat.col).filter(({ row, col }) => this.grid[row][col] === 0);
+    if (!moves.length) return null;
+
+    const scored = moves
+      .map((move) => ({ move, score: this.distanceToNearestEdge(move) }))
+      .sort((a, b) => a.score - b.score || Math.random() - 0.5);
+
+    return scored[0].move;
+  }
+
+  moveCat() {
+    const current = { ...this.cat };
+    const path = this.findShortestEscapePath();
+    this.lastEscapeRoute = path ? path.slice(1) : [];
+
+    if (path && path.length > 1) {
+      const next = path[1];
+      if (!this.isNeighbor(current, next) || this.grid[next.row][next.col] === 1) {
+        this.status = "trapped";
+        this.lastMove = null;
+        this.message = "检测到异常路径，已阻止神经猫穿墙。";
+        return;
+      }
+      this.lastMove = next;
+      this.cat = next;
+      if (this.isEdge(next.row, next.col)) {
+        this.status = "escaped";
+        this.message = "神经猫冲到边缘并跳出了网格。";
+      } else {
+        this.message = "神经猫沿最短路径继续逃跑。";
+      }
+      return;
+    }
+
+    const fallback = this.chooseFallbackMove();
+    if (fallback) {
+      if (!this.isNeighbor(current, fallback) || this.grid[fallback.row][fallback.col] === 1) {
+        this.status = "trapped";
+        this.lastMove = null;
+        this.message = "检测到异常路径，已阻止神经猫穿墙。";
+        return;
+      }
+      this.lastMove = fallback;
+      this.cat = fallback;
+      this.message = "主路径封死，神经猫改走最后的活路。";
+      if (this.isEdge(fallback.row, fallback.col)) {
+        this.status = "escaped";
+        this.message = "神经猫从边缘找到缺口，成功逃脱。";
+      }
+      return;
+    }
+
+    this.status = "trapped";
+    this.lastMove = null;
+    this.message = "神经猫被彻底围住了。";
+  }
+
+  getCellCenter(row, col) {
+    this.updateLayout();
+    const x = this.offsetX + col * this.radius * 2 + (row % 2 === 0 ? this.radius : 0);
+    const y = this.offsetY + row * this.verticalSpacing;
+    return { x, y };
+  }
+
+  updateLayout(width = canvas.getBoundingClientRect().width, height = canvas.getBoundingClientRect().height) {
+    this.shellX = 28;
+    this.shellY = 24;
+    this.shellWidth = width - 56;
+    this.shellHeight = height - 48;
+
+    this.boardPanelX = this.shellX + 26;
+    this.boardPanelY = this.shellY + 26;
+    this.boardPanelWidth = this.shellWidth - 52;
+    this.boardPanelHeight = this.shellHeight - 52;
+
+    this.headerX = this.boardPanelX + 22;
+    this.headerY = this.boardPanelY + 24;
+    this.footerHeight = 68;
+    this.gridAreaX = this.boardPanelX + 20;
+    this.gridAreaY = this.boardPanelY + 84;
+    this.gridAreaWidth = this.boardPanelWidth - 40;
+    this.gridAreaHeight = this.boardPanelHeight - 124 - this.footerHeight;
+
+    const horizontalPadding = 20;
+    const verticalPadding = 20;
+    const radiusByWidth = (this.gridAreaWidth - horizontalPadding * 2) / (this.size * 2 + 1);
+    const radiusByHeight = (this.gridAreaHeight - verticalPadding * 2) / (2 + (this.size - 1) * 1.56);
+    this.radius = Math.max(14, Math.min(19, radiusByWidth, radiusByHeight));
+    this.verticalSpacing = this.radius * 1.56;
+
+    const boardWidth = this.radius * (this.size * 2 + 1);
+    const boardHeight = this.radius * 2 + (this.size - 1) * this.verticalSpacing;
+    this.offsetX = this.gridAreaX + (this.gridAreaWidth - boardWidth) / 2 + this.radius;
+    this.offsetY = this.gridAreaY + (this.gridAreaHeight - boardHeight) / 2 + this.radius;
+  }
+
+  findCellAtPoint(x, y) {
+    this.updateLayout();
+    for (let row = 0; row < this.size; row += 1) {
+      for (let col = 0; col < this.size; col += 1) {
+        const center = this.getCellCenter(row, col);
+        if (Math.hypot(center.x - x, center.y - y) <= this.radius - 1) return { row, col };
+      }
+    }
+    return null;
+  }
+
+  handlePointerMove(event) {
+    const rect = canvas.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    this.pointer = { x: localX, y: localY };
+    this.hoverCell = this.findCellAtPoint(localX, localY);
+  }
+
+  handleClick(event) {
+    if (activeGameId !== "cat" || this.status !== "playing") return;
+    const rect = canvas.getBoundingClientRect();
+    const cell = this.findCellAtPoint(event.clientX - rect.left, event.clientY - rect.top);
+    if (!cell) return;
+    if ((cell.row === this.cat.row && cell.col === this.cat.col) || this.grid[cell.row][cell.col] === 1) return;
+
+    this.grid[cell.row][cell.col] = 1;
+    this.lastClicked = cell;
+    this.turns += 1;
+    this.moveCat();
+  }
+
+  update() {
+    if (keysDown.has("r") || keysDown.has("R")) {
+      keysDown.delete("r");
+      keysDown.delete("R");
+      this.reset();
+    }
+  }
+
+  render(width, height) {
+    this.updateLayout(width, height);
+
+    ctx.fillStyle = "#0a1425";
+    ctx.fillRect(0, 0, width, height);
+
+    const bgGradient = ctx.createRadialGradient(width * 0.5, height * 0.4, 80, width * 0.5, height * 0.4, width * 0.55);
+    bgGradient.addColorStop(0, "rgba(93,244,199,0.16)");
+    bgGradient.addColorStop(1, "rgba(10,20,37,0)");
+    ctx.fillStyle = bgGradient;
+    ctx.fillRect(0, 0, width, height);
+
+    drawRoundedRect(
+      this.shellX,
+      this.shellY,
+      this.shellWidth,
+      this.shellHeight,
+      34,
+      "rgba(4,10,20,0.64)",
+      "rgba(255,255,255,0.08)"
+    );
+    drawRoundedRect(
+      this.boardPanelX,
+      this.boardPanelY,
+      this.boardPanelWidth,
+      this.boardPanelHeight,
+      30,
+      "rgba(6,12,24,0.88)",
+      "rgba(255,255,255,0.06)"
+    );
+
+    for (let row = 0; row < this.size; row += 1) {
+      for (let col = 0; col < this.size; col += 1) {
+        const center = this.getCellCenter(row, col);
+        const isHover = this.hoverCell && this.hoverCell.row === row && this.hoverCell.col === col;
+        const isCat = this.cat.row === row && this.cat.col === col;
+        const blocked = this.grid[row][col] === 1;
+
+        ctx.beginPath();
+        ctx.arc(center.x, center.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = blocked ? this.palette.blocked : isHover && !isCat ? "#dbe5f4" : this.palette.open;
+        ctx.fill();
+        ctx.lineWidth = isHover && !blocked ? 3 : 1.5;
+        ctx.strokeStyle = blocked ? "rgba(255,234,205,0.28)" : "rgba(14,24,40,0.18)";
+        ctx.stroke();
+
+        if (isCat) {
+          ctx.beginPath();
+          ctx.arc(center.x, center.y, this.radius - 5, 0, Math.PI * 2);
+          ctx.fillStyle = this.status === "trapped" ? this.palette.win : this.palette.cat;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(center.x - 6, center.y - 3, 2.6, 0, Math.PI * 2);
+          ctx.arc(center.x + 6, center.y - 3, 2.6, 0, Math.PI * 2);
+          ctx.fillStyle = this.palette.catFace;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(center.x, center.y + 4, 5.5, 0, Math.PI);
+          ctx.strokeStyle = this.palette.catFace;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(center.x - 10, center.y - 12);
+          ctx.lineTo(center.x - 5, center.y - 22);
+          ctx.lineTo(center.x - 1, center.y - 12);
+          ctx.moveTo(center.x + 10, center.y - 12);
+          ctx.lineTo(center.x + 5, center.y - 22);
+          ctx.lineTo(center.x + 1, center.y - 12);
+          ctx.strokeStyle = this.palette.catFace;
+          ctx.stroke();
+        }
+      }
+    }
+
+    ctx.fillStyle = "#eef4ff";
+    ctx.font = "700 16px 'Space Grotesk'";
+    ctx.fillText("TACTICAL BOARD", this.headerX, this.headerY);
+    ctx.font = "500 17px 'Noto Sans SC'";
+    ctx.fillStyle = "#90a5ca";
+    ctx.fillText("点击灰色圆点布置障碍，猫每回合只会走一步。", this.headerX, this.headerY + 28);
+
+    drawRoundedRect(
+      this.boardPanelX + 18,
+      this.boardPanelY + this.boardPanelHeight - this.footerHeight - 18,
+      this.boardPanelWidth - 36,
+      this.footerHeight,
+      22,
+      "rgba(255,255,255,0.05)",
+      "rgba(255,255,255,0.08)"
+    );
+    ctx.fillStyle = this.status === "trapped" ? this.palette.win : this.status === "escaped" ? this.palette.lose : "#ffd86b";
+    ctx.font = "700 16px 'Space Grotesk'";
+    ctx.fillText(
+      this.status === "trapped" ? "CAT TRAPPED" : this.status === "escaped" ? "CAT ESCAPED" : "NEXT DECISION",
+      this.boardPanelX + 42,
+      this.boardPanelY + this.boardPanelHeight - 48
+    );
+    ctx.fillStyle = "#eef4ff";
+    ctx.font = "500 15px 'Noto Sans SC'";
+    this.wrapText(
+      this.message,
+      this.boardPanelX + 196,
+      this.boardPanelY + this.boardPanelHeight - 48,
+      this.boardPanelWidth - 250,
+      24
+    );
+  }
+
+  wrapText(text, x, y, maxWidth, lineHeight) {
+    let current = "";
+    for (const char of text) {
+      const next = current + char;
+      if (ctx.measureText(next).width > maxWidth && current) {
+        ctx.fillText(current, x, y);
+        current = char;
+        y += lineHeight;
+      } else {
+        current = next;
+      }
+    }
+    if (current) ctx.fillText(current, x, y);
+  }
+
+  getHudStats() {
+    const freeNeighbors = this.getNeighbors(this.cat.row, this.cat.col).filter(({ row, col }) => this.grid[row][col] === 0).length;
+    return [
+      ["回合数", this.turns],
+      ["猫位置", `${this.cat.row}, ${this.cat.col}`],
+      ["可走邻点", freeNeighbors],
+      ["状态", this.status === "playing" ? "围堵中" : this.status === "trapped" ? "玩家获胜" : "神经猫逃脱"],
+    ];
+  }
+
+  getTextState() {
+    return {
+      mode: "cat",
+      coordinateSystem: "offset hex grid 11x11, row major, even rows shifted right by half cell",
+      status: this.status,
+      turns: this.turns,
+      cat: this.cat,
+      lastMove: this.lastMove,
+      lastClicked: this.lastClicked,
+      shortestEscapeRoute: this.lastEscapeRoute,
+      blockedCells: this.grid.flatMap((row, rowIndex) =>
+        row.map((cell, colIndex) => (cell === 1 ? { row: rowIndex, col: colIndex } : null)).filter(Boolean)
+      ),
+    };
+  }
+}
+
 const games = {
   tetris: new TetrisGame(),
   snake: new SnakeGame(),
   tank: new TankGame(),
+  cat: new CircleTheCatGame(),
 };
 
 let activeGameId = "tetris";
@@ -881,6 +1292,17 @@ tabEls.forEach((tab) => {
   tab.addEventListener("click", () => switchGame(tab.dataset.game));
 });
 
+canvas.addEventListener("mousemove", (event) => {
+  const game = games.cat;
+  game.handlePointerMove(event);
+});
+
+canvas.addEventListener("click", (event) => {
+  const game = games.cat;
+  game.handleClick(event);
+  if (activeGameId === "cat") draw();
+});
+
 window.addEventListener("keydown", (event) => {
   if (event.key === "f" || event.key === "F") {
     if (document.fullscreenElement) {
@@ -917,7 +1339,13 @@ window.advanceTime = (ms) => {
   }
   draw();
 };
-window.arcadia = { switchGame };
+window.arcadia = {
+  switchGame,
+  games,
+  getCatCellCenter(row, col) {
+    return games.cat.getCellCenter(row, col);
+  },
+};
 
 fitCanvas();
 renderInfo(activeGameId);
