@@ -1,0 +1,226 @@
+{
+  "tetris-initial": {
+    "mode": "tetris",
+    "coordinateSystem": "origin top-left, x right, y down, board 10x20",
+    "score": 0,
+    "lines": 0,
+    "level": 1,
+    "gameOver": false,
+    "activePiece": {
+      "type": "J",
+      "x": 4,
+      "y": 3
+    },
+    "nextPiece": "O",
+    "filledCells": []
+  },
+  "tetris-play": {
+    "mode": "tetris",
+    "coordinateSystem": "origin top-left, x right, y down, board 10x20",
+    "score": 0,
+    "lines": 0,
+    "level": 1,
+    "gameOver": false,
+    "activePiece": {
+      "type": "J",
+      "x": 4,
+      "y": 4
+    },
+    "nextPiece": "O",
+    "filledCells": []
+  },
+  "snake-initial": {
+    "mode": "snake",
+    "coordinateSystem": "origin top-left, x right, y down, board 20x20",
+    "score": 0,
+    "best": 0,
+    "gameOver": false,
+    "direction": {
+      "x": 1,
+      "y": 0
+    },
+    "snake": [
+      {
+        "x": 11,
+        "y": 10
+      },
+      {
+        "x": 10,
+        "y": 10
+      },
+      {
+        "x": 9,
+        "y": 10
+      }
+    ],
+    "food": {
+      "x": 17,
+      "y": 19
+    },
+    "obstacles": []
+  },
+  "snake-play": {
+    "mode": "snake",
+    "coordinateSystem": "origin top-left, x right, y down, board 20x20",
+    "score": 0,
+    "best": 0,
+    "gameOver": false,
+    "direction": {
+      "x": 1,
+      "y": 0
+    },
+    "snake": [
+      {
+        "x": 14,
+        "y": 10
+      },
+      {
+        "x": 13,
+        "y": 10
+      },
+      {
+        "x": 12,
+        "y": 10
+      }
+    ],
+    "food": {
+      "x": 17,
+      "y": 19
+    },
+    "obstacles": []
+  },
+  "tank-initial": {
+    "mode": "tank",
+    "coordinateSystem": "origin top-left, x right, y down, arena 960x720",
+    "score": 0,
+    "gameOver": false,
+    "win": false,
+    "player": {
+      "x": 140,
+      "y": 360,
+      "angle": 0,
+      "hp": 5
+    },
+    "enemies": [
+      {
+        "id": 1,
+        "x": 620,
+        "y": 169.6,
+        "angle": 2.76,
+        "hp": 2
+      },
+      {
+        "id": 2,
+        "x": 740,
+        "y": 210.4,
+        "angle": 2.9,
+        "hp": 2
+      },
+      {
+        "id": 3,
+        "x": 620,
+        "y": 369.6,
+        "angle": -3.12,
+        "hp": 2
+      },
+      {
+        "id": 4,
+        "x": 740,
+        "y": 410.4,
+        "angle": -3.06,
+        "hp": 2
+      },
+      {
+        "id": 5,
+        "x": 620,
+        "y": 569.6,
+        "angle": -2.73,
+        "hp": 2
+      }
+    ],
+    "projectiles": [
+      {
+        "owner": "enemy",
+        "x": 616,
+        "y": 171.2
+      }
+    ]
+  },
+  "tank-play": {
+    "mode": "tank",
+    "coordinateSystem": "origin top-left, x right, y down, arena 960x720",
+    "score": 0,
+    "gameOver": false,
+    "win": false,
+    "player": {
+      "x": 178,
+      "y": 360,
+      "angle": 0,
+      "hp": 5
+    },
+    "enemies": [
+      {
+        "id": 1,
+        "x": 620,
+        "y": 204,
+        "angle": 2.8,
+        "hp": 2
+      },
+      {
+        "id": 2,
+        "x": 740,
+        "y": 176,
+        "angle": 2.83,
+        "hp": 2
+      },
+      {
+        "id": 3,
+        "x": 620,
+        "y": 404,
+        "angle": -3.04,
+        "hp": 2
+      },
+      {
+        "id": 4,
+        "x": 740,
+        "y": 376,
+        "angle": -3.11,
+        "hp": 2
+      },
+      {
+        "id": 5,
+        "x": 620,
+        "y": 604,
+        "angle": -2.64,
+        "hp": 2
+      }
+    ],
+    "projectiles": [
+      {
+        "owner": "enemy",
+        "x": 442.8,
+        "y": 239.9
+      },
+      {
+        "owner": "enemy",
+        "x": 598.3,
+        "y": 241
+      },
+      {
+        "owner": "enemy",
+        "x": 511.9,
+        "y": 379.9
+      },
+      {
+        "owner": "enemy",
+        "x": 683.7,
+        "y": 381.6
+      },
+      {
+        "owner": "enemy",
+        "x": 616.2,
+        "y": 601.9
+      }
+    ]
+  }
+}

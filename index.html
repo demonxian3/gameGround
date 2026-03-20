@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Arcadia Grid | Web 游戏合集</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Static Arcade Collection</p>
+          <h1>Arcadia Grid</h1>
+          <p class="subtitle">
+            一个可以快速切换的复古街机游乐场。方向键移动，空格确认，按
+            <kbd>F</kbd> 可切换全屏。
+          </p>
+        </div>
+
+        <nav class="game-nav" aria-label="游戏切换">
+          <button class="game-tab active" data-game="tetris">
+            <span>01</span>
+            <strong>俄罗斯方块</strong>
+            <small>堆叠、消行、提速</small>
+          </button>
+          <button class="game-tab" data-game="snake">
+            <span>02</span>
+            <strong>贪吃蛇</strong>
+            <small>冲刺、转向、抢分</small>
+          </button>
+          <button class="game-tab" data-game="tank">
+            <span>03</span>
+            <strong>坦克大战</strong>
+            <small>射击、清场、生存</small>
+          </button>
+        </nav>
+
+        <section class="info-card">
+          <p class="info-title">玩法说明</p>
+          <div id="game-description"></div>
+        </section>
+      </aside>
+
+      <main class="stage-panel">
+        <section class="hero-strip">
+          <div>
+            <p class="eyebrow">Playable Now</p>
+            <h2 id="game-title">俄罗斯方块</h2>
+          </div>
+          <div class="pill-row" id="game-tags"></div>
+        </section>
+
+        <section class="play-surface">
+          <div class="canvas-frame">
+            <canvas
+              id="game-canvas"
+              width="960"
+              height="720"
+              aria-label="当前游戏画面"
+            ></canvas>
+            <div class="canvas-glow"></div>
+          </div>
+
+          <section class="hud-panel">
+            <div class="hud-card">
+              <p class="hud-label">当前状态</p>
+              <div id="hud-stats" class="hud-stats"></div>
+            </div>
+            <div class="hud-card">
+              <p class="hud-label">快捷操作</p>
+              <div id="hud-controls" class="hud-controls"></div>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="./main.js"></script>
+  </body>
+</html>
