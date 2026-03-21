@@ -1717,6 +1717,7 @@ const games = {
 
 let activeGameId = "tetris";
 let lastTime = performance.now();
+let layoutFrame = 0;
 
 function renderInfo(gameId) {
   const meta = GAME_META[gameId];
@@ -1744,6 +1745,17 @@ function draw() {
   const rect = canvas.getBoundingClientRect();
   games[activeGameId].render(rect.width, rect.height);
   updateHud();
+}
+
+function refreshLayout() {
+  layoutFrame = 0;
+  fitCanvas();
+  draw();
+}
+
+function scheduleLayoutRefresh() {
+  if (layoutFrame) return;
+  layoutFrame = requestAnimationFrame(refreshLayout);
 }
 
 function tick(now) {
@@ -1793,14 +1805,27 @@ window.addEventListener("keyup", (event) => {
 });
 
 window.addEventListener("resize", () => {
-  fitCanvas();
-  draw();
+  scheduleLayoutRefresh();
 });
 
 window.addEventListener("fullscreenchange", () => {
-  fitCanvas();
-  draw();
+  scheduleLayoutRefresh();
 });
+
+window.addEventListener("load", () => {
+  scheduleLayoutRefresh();
+});
+
+document.fonts?.ready?.then(() => {
+  scheduleLayoutRefresh();
+});
+
+if ("ResizeObserver" in window) {
+  const resizeObserver = new ResizeObserver(() => {
+    scheduleLayoutRefresh();
+  });
+  resizeObserver.observe(canvas.parentElement);
+}
 
 window.render_game_to_text = () => JSON.stringify(games[activeGameId].getTextState());
 window.advanceTime = (ms) => {
@@ -1822,7 +1847,6 @@ window.arcadia = {
   },
 };
 
-fitCanvas();
 renderInfo(activeGameId);
-draw();
+scheduleLayoutRefresh();
 requestAnimationFrame(tick);
