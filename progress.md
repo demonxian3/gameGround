@@ -27,3 +27,5 @@ Original prompt: 我打算开发一款web网页游戏合集，包含俄罗斯方
 - 前端实现方向：浏览器内先用 `BroadcastChannel + localStorage` 做同房间多标签实时同步，支持自动生成房间号、复制邀请链接、昵称修改、队列守擂和 5 分钟倒计时。
 - 补充 `socket-room-server-example.js`，给出切换到正式 `socket.io` 服务端时的房间、快照广播与胜负流转关键逻辑。
 - `smoke-test.mjs` 已调整为双页面同房间验证，覆盖两位玩家加入同一房间后的俄罗斯方块 PK 初始态与操作同步场景。
+- 新增 UI 缩放调整：按截图反馈收紧合集整体布局，缩小左侧导航栏、顶部房间条、右侧 HUD、卡片圆角与内边距，让主对战画布占比更高。
+- 调整后重新执行 `node --check main.js` 与 `node smoke-test.mjs`，并检查 `output/playwright/tetris-initial.png`；页面布局正常，`output/playwright/errors.json` 为空。

@@ -18,7 +18,7 @@
 html,
 body {
   margin: 0;
-  min-height: 100%;
+  height: 100%;
   background:
     radial-gradient(
       circle at top left,
@@ -41,17 +41,18 @@ body {
 
 .page-shell {
   display: grid;
-  grid-template-columns: 360px 1fr;
-  min-height: 100vh;
-  padding: 72px 24px 24px;
-  gap: 24px;
+  grid-template-columns: 286px 1fr;
+  height: 100vh;
+  padding: 10px;
+  gap: 10px;
+  overflow: hidden;
 }
 
 .sidebar,
 .stage-panel {
   position: relative;
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 22px;
   background: var(--panel);
   backdrop-filter: blur(18px);
   box-shadow: var(--shadow);
@@ -60,45 +61,52 @@ body {
 .sidebar {
   display: flex;
   flex-direction: column;
-  padding: 40px 28px 28px;
-  gap: 24px;
+  height: 100%;
+  min-height: 0;
+  padding: 16px 16px 14px;
+  gap: 12px;
+  overflow: hidden;
 }
 
 .brand-block h1,
 .hero-strip h2 {
   margin: 0;
-  font-size: clamp(2rem, 3vw, 3.5rem);
-  line-height: 0.92;
+  font-size: clamp(1.45rem, 2vw, 2.3rem);
+  line-height: 0.96;
   letter-spacing: -0.06em;
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0 0 4px;
   color: var(--accent);
   text-transform: uppercase;
   letter-spacing: 0.28em;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
 .subtitle {
-  margin: 16px 0 0;
+  margin: 8px 0 0;
   color: var(--muted);
-  line-height: 1.7;
+  line-height: 1.45;
+  font-size: 0.92rem;
   max-width: 24rem;
   word-break: break-word;
 }
 
 .game-nav {
   display: grid;
-  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-content: start;
+  gap: 8px;
 }
 
 .game-tab {
   border: 1px solid transparent;
-  border-radius: 22px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--text);
-  padding: 18px 18px 16px;
+  padding: 11px 12px 10px;
   text-align: left;
   cursor: pointer;
   transition:
@@ -124,35 +132,44 @@ body {
 }
 
 .game-tab span {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   color: var(--accent-warm);
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   letter-spacing: 0.22em;
 }
 
 .game-tab strong {
   display: block;
-  margin-bottom: 6px;
-  font-size: 1.1rem;
+  margin-bottom: 3px;
+  font-size: 0.94rem;
 }
 
 .game-tab small {
   color: var(--muted);
+  font-size: 0.8rem;
 }
 
 .info-card,
 .hud-card {
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.035);
-  padding: 18px;
+  padding: 12px;
+  min-height: 0;
+}
+
+.info-card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .info-title,
 .hud-label {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   color: var(--accent-warm);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
@@ -160,25 +177,29 @@ body {
 .stage-panel {
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  gap: 10px;
   overflow: hidden;
 }
 
 .hero-strip {
   display: flex;
   justify-content: space-between;
-  align-items: end;
-  gap: 16px;
-  margin-bottom: 22px;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
 }
 
 .room-bar {
   display: grid;
-  gap: 16px;
-  margin-bottom: 18px;
-  padding: 26px 20px 18px;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 10px 12px;
   border: 1px solid rgba(93, 244, 199, 0.18);
-  border-radius: 24px;
+  border-radius: 18px;
   background: linear-gradient(
     135deg,
     rgba(93, 244, 199, 0.08),
@@ -194,13 +215,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 10px;
 }
 
 .room-label {
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   color: var(--accent-warm);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   letter-spacing: 0.24em;
   text-transform: uppercase;
 }
@@ -208,12 +229,12 @@ body {
 .room-headline {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
 }
 
 .room-headline strong {
-  font-size: 1.05rem;
+  font-size: 0.88rem;
   letter-spacing: 0.12em;
 }
 
@@ -234,7 +255,8 @@ body {
 }
 
 .invite-btn {
-  padding: 10px 16px;
+  padding: 7px 12px;
+  white-space: nowrap;
 }
 
 .invite-btn:hover,
@@ -246,17 +268,17 @@ body {
 .player-queue {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   align-items: flex-start;
 }
 
 .queue-player {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  padding: 10px 12px;
-  border-radius: 18px;
+  padding: 6px 9px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(7, 16, 30, 0.56);
 }
@@ -280,11 +302,12 @@ body {
 .queue-avatar {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
   color: #06101c;
   font-weight: 700;
+  font-size: 0.85rem;
 }
 
 .queue-player button {
@@ -310,43 +333,52 @@ body {
 .pill-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 6px;
   justify-content: flex-end;
 }
 
 .pill-row span {
-  padding: 10px 14px;
+  padding: 6px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.74rem;
 }
 
 .play-surface {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
-  gap: 20px;
-  flex: 1;
-  height: calc(100vh - 140px);
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 210px);
+  gap: 10px;
+  flex: 1 1 auto;
+  overflow: hidden;
   min-height: 0;
+  align-items: stretch;
 }
 
 .canvas-frame {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  border-radius: 30px;
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 24px;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
     rgba(5, 9, 18, 0.92);
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  min-height: 0;
 }
 
 #game-canvas {
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
   display: block;
 }
 
@@ -364,18 +396,32 @@ body {
 }
 
 .hud-panel {
-  display: grid;
-  grid-template-rows: 1fr 1fr;
-  gap: 18px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.hud-card {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
 }
 
 .hud-stats,
 .hud-controls,
 #game-description {
   display: grid;
-  gap: 10px;
+  flex: 1 1 auto;
+  gap: 6px;
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.4;
+  font-size: 0.9rem;
+}
+
+#game-description {
+  overflow: hidden;
 }
 
 .stat-line,
@@ -383,7 +429,7 @@ body {
 .desc-line {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   align-items: baseline;
 }
 
@@ -412,6 +458,7 @@ kbd {
 
   .page-shell {
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .play-surface {
@@ -420,12 +467,13 @@ kbd {
   }
 
   .canvas-frame {
-    min-height: 62vh;
+    min-height: 54vh;
   }
 
   .hud-panel {
+    display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: none;
+    flex: 0 0 auto;
   }
 
   .room-meta {
@@ -436,13 +484,13 @@ kbd {
 
 @media (max-width: 720px) {
   .page-shell {
-    padding: 40px 14px 14px;
-    gap: 14px;
+    padding: 12px;
+    gap: 12px;
   }
 
   .sidebar,
   .stage-panel {
-    padding: 18px;
+    padding: 16px;
     border-radius: 22px;
   }
 
@@ -454,5 +502,9 @@ kbd {
 
   .pill-row {
     justify-content: flex-start;
+  }
+
+  .hero-strip {
+    gap: 8px;
   }
 }
