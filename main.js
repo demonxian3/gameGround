@@ -6,6 +6,11 @@ const descEl = document.getElementById("game-description");
 const statsEl = document.getElementById("hud-stats");
 const controlsEl = document.getElementById("hud-controls");
 const tabEls = [...document.querySelectorAll(".game-tab")];
+const roomBarEl = document.getElementById("room-bar");
+const roomIdEl = document.getElementById("room-id");
+const roomRoleEl = document.getElementById("room-role");
+const inviteBtnEl = document.getElementById("invite-btn");
+const playerQueueEl = document.getElementById("player-queue");
 
 const keysDown = new Set();
 
@@ -15,6 +20,23 @@ function clamp(value, min, max) {
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function createId() {
+  if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+  return `id-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function formatCountdown(ms) {
+  const safe = Math.max(0, ms);
+  const totalSeconds = Math.ceil(safe / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 function drawRoundedRect(x, y, w, h, r, fillStyle, strokeStyle) {
@@ -46,18 +68,18 @@ function fitCanvas() {
 const GAME_META = {
   tetris: {
     title: "俄罗斯方块",
-    tags: ["消行加速", "经典 10x20", "预览下一个方块"],
+    tags: ["房间 PK", "队列守擂", "双分屏观战"],
     description: [
-      ["目标", "尽可能消行并维持场面整洁。"],
-      ["控制", "左右移动、上旋转、下加速、空格硬降。"],
-      ["节奏", "分数越高，下落速度越快。"],
+      ["目标", "队列前两名自动上场 PK，时间结束时以高分决胜。"],
+      ["房间", "复制邀请链接让其他玩家加入，同步昵称、队列和比赛状态。"],
+      ["流转", "胜者守擂留在左侧，败者自动掉到队尾继续排队。"],
     ],
     controls: [
       ["移动", "← / →"],
       ["旋转", "↑"],
       ["软降", "↓"],
       ["硬降", "Space"],
-      ["重开", "R"],
+      ["投降", "R"],
     ],
   },
   snake: {
@@ -104,13 +126,10 @@ const GAME_META = {
   },
 };
 
-class TetrisGame {
+class TetrisEngine {
   constructor() {
     this.cols = 10;
     this.rows = 20;
-    this.cell = 28;
-    this.offsetX = 140;
-    this.offsetY = 90;
     this.shapeDefs = {
       I: [[1, 1, 1, 1]],
       O: [
@@ -260,14 +279,8 @@ class TetrisGame {
     if (acted) this.moveCooldown = 0.1;
   }
 
-  update(dt) {
-    if (keysDown.has("r") || keysDown.has("R")) {
-      keysDown.delete("r");
-      keysDown.delete("R");
-      this.reset();
-      return;
-    }
-    this.handleInput(dt);
+  update(dt, allowInput = true) {
+    if (allowInput) this.handleInput(dt);
     if (this.gameOver) return;
     const speed = Math.max(0.08, 0.62 - (this.level - 1) * 0.045);
     this.dropAccumulator += dt;
@@ -283,15 +296,15 @@ class TetrisGame {
     }
   }
 
-  drawPreview(piece, x, y) {
+  drawPreview(piece, x, y, cellSize = 24) {
     piece.matrix.forEach((row, rowIndex) => {
       row.forEach((cell, colIndex) => {
         if (!cell) return;
         drawRoundedRect(
-          x + colIndex * 24,
-          y + rowIndex * 24,
-          20,
-          20,
+          x + colIndex * cellSize,
+          y + rowIndex * cellSize,
+          cellSize - 4,
+          cellSize - 4,
           6,
           this.palette[piece.type],
           "rgba(255,255,255,0.24)"
@@ -299,117 +312,574 @@ class TetrisGame {
       });
     });
   }
+  getSnapshot() {
+    return {
+      score: this.score,
+      lines: this.lines,
+      level: this.level,
+      gameOver: this.gameOver,
+      activePiece: this.current
+        ? {
+            type: this.current.type,
+            x: this.current.x,
+            y: this.current.y,
+            matrix: this.current.matrix.map((row) => [...row]),
+          }
+        : null,
+      nextPiece: this.next?.type ?? null,
+      filledCells: this.board.flatMap((row, y) =>
+        row.map((cell, x) => (cell ? { x, y, type: cell } : null)).filter(Boolean)
+      ),
+    };
+  }
+}
+
+class TetrisGame {
+  constructor() {
+    this.engine = new TetrisEngine();
+    this.playerColors = ["#5df4c7", "#ffd86b", "#ff8aa7", "#79a8ff", "#c9ff70", "#ffb86b"];
+    this.storageKeyPrefix = "arcadia-grid-room";
+    this.roomTtlMs = 20000;
+    this.heartbeatMs = 2500;
+    this.matchDurationMs = 5 * 60 * 1000;
+    this.localPlayerId = sessionStorage.getItem("arcadia-player-id") || createId();
+    sessionStorage.setItem("arcadia-player-id", this.localPlayerId);
+    this.roomId = this.resolveRoomId();
+    this.channel = "BroadcastChannel" in window ? new BroadcastChannel(`arcadia-room-${this.roomId}`) : null;
+    this.channel?.addEventListener("message", (event) => this.handleRemoteState(event.data));
+    window.addEventListener("storage", (event) => this.handleStorageEvent(event));
+    window.addEventListener("beforeunload", () => this.leaveRoom());
+    this.queueRenderState = null;
+    this.lastRoundSeen = null;
+    this.lastPublishedState = "";
+    this.publishAccumulator = 0;
+    this.roomState = this.readState();
+    this.registerLocalPlayer();
+    this.bindRoomUi();
+    this.heartbeat = window.setInterval(() => this.refreshPresence(), this.heartbeatMs);
+  }
+
+  resolveRoomId() {
+    const url = new URL(window.location.href);
+    const existing = url.searchParams.get("room");
+    if (existing) return existing.toUpperCase();
+    const roomId = Math.random().toString(36).slice(2, 8).toUpperCase();
+    url.searchParams.set("room", roomId);
+    window.history.replaceState({}, "", url);
+    return roomId;
+  }
+
+  bindRoomUi() {
+    inviteBtnEl.addEventListener("click", async () => {
+      const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomId}`;
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        inviteBtnEl.textContent = "已复制邀请链接";
+      } catch {
+        inviteBtnEl.textContent = inviteUrl;
+      }
+      window.setTimeout(() => {
+        inviteBtnEl.textContent = "复制邀请链接";
+      }, 1800);
+    });
+
+    playerQueueEl.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-action='rename-player']");
+      if (!trigger) return;
+      this.renameLocalPlayer();
+    });
+  }
+
+  randomName() {
+    const prefixes = ["霓虹", "量子", "回声", "流火", "折线", "极光", "向量", "蓝移"];
+    const suffixes = ["方块手", "守擂者", "清行机", "挑战者", "跳帧猫", "偏移体", "控场员", "反应堆"];
+    return `${prefixes[randomInt(0, prefixes.length - 1)]}${suffixes[randomInt(0, suffixes.length - 1)]}`;
+  }
+
+  makePlayer() {
+    return {
+      id: this.localPlayerId,
+      name: localStorage.getItem(`arcadia-player-name-${this.roomId}`) || this.randomName(),
+      color: this.playerColors[randomInt(0, this.playerColors.length - 1)],
+      joinedAt: Date.now(),
+      lastSeen: Date.now(),
+    };
+  }
+
+  get storageKey() {
+    return `${this.storageKeyPrefix}-${this.roomId}`;
+  }
+
+  getEmptyState() {
+    return {
+      roomId: this.roomId,
+      players: [],
+      queue: [],
+      snapshots: {},
+      activeMatch: null,
+      roundCounter: 0,
+      lastEvent: "等待第二位玩家加入后自动开赛",
+      updatedAt: 0,
+    };
+  }
+
+  readState() {
+    try {
+      const raw = localStorage.getItem(this.storageKey);
+      if (!raw) return this.getEmptyState();
+      return this.reconcileState(JSON.parse(raw));
+    } catch {
+      return this.getEmptyState();
+    }
+  }
+
+  writeState(state) {
+    const next = this.reconcileState(state);
+    next.updatedAt = Date.now();
+    localStorage.setItem(this.storageKey, JSON.stringify(next));
+    this.roomState = next;
+    this.channel?.postMessage(next);
+    this.renderRoomUi();
+  }
+
+  handleRemoteState(remoteState) {
+    if (!remoteState || remoteState.roomId !== this.roomId) return;
+    if ((remoteState.updatedAt || 0) < (this.roomState.updatedAt || 0)) return;
+    this.roomState = this.reconcileState(remoteState);
+    this.renderRoomUi();
+  }
+
+  handleStorageEvent(event) {
+    if (event.key !== this.storageKey || !event.newValue) return;
+    this.handleRemoteState(JSON.parse(event.newValue));
+  }
+
+  reconcileState(state) {
+    const now = Date.now();
+    const next = state ? deepClone(state) : this.getEmptyState();
+    next.players = (next.players || []).filter((player, index, list) => list.findIndex((item) => item.id === player.id) === index);
+    next.players = next.players.filter((player) => now - (player.lastSeen || 0) < this.roomTtlMs);
+    next.queue = (next.queue || []).filter((id, index, list) => list.indexOf(id) === index && next.players.some((player) => player.id === id));
+    next.players
+      .slice()
+      .sort((a, b) => a.joinedAt - b.joinedAt)
+      .forEach((player) => {
+        if (!next.queue.includes(player.id)) next.queue.push(player.id);
+      });
+    Object.keys(next.snapshots || {}).forEach((playerId) => {
+      if (!next.players.some((player) => player.id === playerId)) delete next.snapshots[playerId];
+    });
+    if (
+      next.activeMatch &&
+      (!next.queue.includes(next.activeMatch.defenderId) || !next.queue.includes(next.activeMatch.challengerId))
+    ) {
+      next.activeMatch = null;
+    }
+    if (!next.activeMatch && next.queue.length >= 2) {
+      next.roundCounter = (next.roundCounter || 0) + 1;
+      next.activeMatch = {
+        round: next.roundCounter,
+        defenderId: next.queue[0],
+        challengerId: next.queue[1],
+        startedAt: now,
+        durationMs: this.matchDurationMs,
+      };
+      next.lastEvent = `${this.getPlayerName(next, next.queue[0])} 守擂，迎战 ${this.getPlayerName(next, next.queue[1])}`;
+    }
+    return next;
+  }
+
+  mutateState(mutator) {
+    const draft = this.readState();
+    mutator(draft);
+    this.writeState(draft);
+  }
+
+  registerLocalPlayer() {
+    const localPlayer = this.makePlayer();
+    this.mutateState((state) => {
+      const existing = state.players.find((player) => player.id === this.localPlayerId);
+      if (existing) {
+        existing.lastSeen = Date.now();
+        existing.name = localPlayer.name;
+      } else {
+        state.players.push(localPlayer);
+        state.queue.push(localPlayer.id);
+      }
+    });
+  }
+
+  refreshPresence() {
+    this.mutateState((state) => {
+      const local = state.players.find((player) => player.id === this.localPlayerId);
+      if (!local) {
+        state.players.push(this.makePlayer());
+        state.queue.push(this.localPlayerId);
+      } else {
+        local.lastSeen = Date.now();
+      }
+    });
+  }
+
+  leaveRoom() {
+    window.clearInterval(this.heartbeat);
+    this.mutateState((state) => {
+      state.players = state.players.filter((player) => player.id !== this.localPlayerId);
+      state.queue = state.queue.filter((id) => id !== this.localPlayerId);
+      delete state.snapshots[this.localPlayerId];
+      if (
+        state.activeMatch &&
+        (state.activeMatch.defenderId === this.localPlayerId || state.activeMatch.challengerId === this.localPlayerId)
+      ) {
+        state.activeMatch = null;
+      }
+    });
+  }
+
+  renameLocalPlayer() {
+    const current = this.getLocalPlayer()?.name || "";
+    const nextName = window.prompt("输入新的昵称", current);
+    if (!nextName) return;
+    const trimmed = nextName.trim().slice(0, 12);
+    if (!trimmed) return;
+    localStorage.setItem(`arcadia-player-name-${this.roomId}`, trimmed);
+    this.mutateState((state) => {
+      const local = state.players.find((player) => player.id === this.localPlayerId);
+      if (local) local.name = trimmed;
+      state.lastEvent = `${trimmed} 已更新昵称`;
+    });
+  }
+
+  getLocalPlayer() {
+    return this.roomState.players.find((player) => player.id === this.localPlayerId) || null;
+  }
+
+  getPlayerName(state, playerId) {
+    return state.players.find((player) => player.id === playerId)?.name || "待加入玩家";
+  }
+
+  getPlayer(playerId) {
+    return this.roomState.players.find((player) => player.id === playerId) || null;
+  }
+
+  getLocalRole() {
+    const match = this.roomState.activeMatch;
+    if (!match) return this.roomState.queue[0] === this.localPlayerId ? "waiting" : "spectator";
+    if (match.defenderId === this.localPlayerId) return "defender";
+    if (match.challengerId === this.localPlayerId) return "challenger";
+    return "spectator";
+  }
+
+  isLocalActive() {
+    return ["defender", "challenger"].includes(this.getLocalRole());
+  }
+
+  getRemainingMs() {
+    const match = this.roomState.activeMatch;
+    if (!match) return this.matchDurationMs;
+    return match.startedAt + match.durationMs - Date.now();
+  }
+
+  resetForNewRound() {
+    const match = this.roomState.activeMatch;
+    if (!match) return;
+    if (this.lastRoundSeen === match.round) return;
+    this.lastRoundSeen = match.round;
+    this.engine.reset();
+    this.publishSnapshot(true);
+  }
+
+  resolveMatch(winnerId, reason) {
+    this.mutateState((state) => {
+      const match = state.activeMatch;
+      if (!match) return;
+      if (![match.defenderId, match.challengerId].includes(winnerId)) return;
+      const loserId = winnerId === match.defenderId ? match.challengerId : match.defenderId;
+      const middle = state.queue.filter((id) => id !== winnerId && id !== loserId);
+      state.queue = [winnerId, ...middle, loserId];
+      state.activeMatch = null;
+      state.lastEvent = `${this.getPlayerName(state, winnerId)} 胜出，原因：${reason}`;
+    });
+  }
+
+  publishSnapshot(force = false) {
+    if (!this.isLocalActive()) return;
+    const snapshot = {
+      ...this.engine.getSnapshot(),
+      playerId: this.localPlayerId,
+      timestamp: Date.now(),
+      name: this.getLocalPlayer()?.name || "玩家",
+    };
+    const serialized = JSON.stringify(snapshot);
+    if (!force && serialized === this.lastPublishedState) return;
+    this.lastPublishedState = serialized;
+    this.mutateState((state) => {
+      state.snapshots[this.localPlayerId] = snapshot;
+    });
+  }
+
+  getRenderedSnapshot(playerId) {
+    if (!playerId) return null;
+    if (playerId === this.localPlayerId) {
+      return {
+        ...this.engine.getSnapshot(),
+        playerId,
+        name: this.getLocalPlayer()?.name || "玩家",
+      };
+    }
+    return this.roomState.snapshots[playerId] || null;
+  }
+
+  maybeResolveByTimer() {
+    const match = this.roomState.activeMatch;
+    if (!match || this.getRemainingMs() > 0) return;
+    const defender = this.getRenderedSnapshot(match.defenderId);
+    const challenger = this.getRenderedSnapshot(match.challengerId);
+    const defenderScore = defender?.score || 0;
+    const challengerScore = challenger?.score || 0;
+    const winnerId = defenderScore >= challengerScore ? match.defenderId : match.challengerId;
+    this.resolveMatch(winnerId, "5 分钟倒计时结束，按分数判定");
+  }
+
+  update(dt) {
+    this.roomState = this.readState();
+    this.resetForNewRound();
+    if (this.isLocalActive()) {
+      if (keysDown.has("r") || keysDown.has("R")) {
+        keysDown.delete("r");
+        keysDown.delete("R");
+        const match = this.roomState.activeMatch;
+        const winnerId = match?.defenderId === this.localPlayerId ? match.challengerId : match?.defenderId;
+        if (winnerId) this.resolveMatch(winnerId, "对手投降");
+        return;
+      }
+      this.engine.update(dt, true);
+      this.publishAccumulator += dt;
+      if (this.publishAccumulator >= 0.08) {
+        this.publishAccumulator = 0;
+        this.publishSnapshot();
+      }
+      if (this.engine.gameOver) {
+        const match = this.roomState.activeMatch;
+        const winnerId = match?.defenderId === this.localPlayerId ? match.challengerId : match?.defenderId;
+        if (winnerId) this.resolveMatch(winnerId, "对手提前 Game Over");
+      }
+    }
+    this.maybeResolveByTimer();
+  }
+
+  drawBoardShell(label, player, snapshot, x, y, width, height, accentColor, controlled) {
+    drawRoundedRect(x, y, width, height, 26, "rgba(7,14,26,0.88)", "rgba(255,255,255,0.08)");
+    ctx.fillStyle = accentColor;
+    ctx.font = "700 13px 'Space Grotesk'";
+    ctx.fillText(label, x + 22, y + 30);
+    ctx.fillStyle = "#eef4ff";
+    ctx.font = "700 22px 'Noto Sans SC'";
+    ctx.fillText(player?.name || "等待玩家", x + 22, y + 62);
+    ctx.fillStyle = "#ffd86b";
+    ctx.font = "700 22px 'Space Grotesk'";
+    ctx.fillText(String(snapshot?.score || 0), x + width - 84, y + 62);
+    ctx.font = "600 12px 'Space Grotesk'";
+    ctx.fillText("SCORE", x + width - 92, y + 34);
+    ctx.fillStyle = "#8ea4cb";
+    ctx.font = "500 14px 'Noto Sans SC'";
+    ctx.fillText(controlled ? "你正在操作该棋盘" : "观战同步视角", x + 22, y + 88);
+
+    const boardTop = y + 112;
+    const boardMaxHeight = height - 150;
+    const boardMaxWidth = width * 0.46;
+    const cell = Math.min(boardMaxHeight / this.engine.rows, boardMaxWidth / this.engine.cols);
+    const boardWidth = cell * this.engine.cols;
+    const boardHeight = cell * this.engine.rows;
+    const boardX = x + 22;
+    const nextX = boardX + boardWidth + 24;
+    const nextWidth = Math.max(112, width - (nextX - x) - 22);
+
+    drawRoundedRect(boardX - 14, boardTop - 14, boardWidth + 28, boardHeight + 28, 22, "rgba(3,8,18,0.82)", "rgba(255,255,255,0.06)");
+    for (let row = 0; row < this.engine.rows; row += 1) {
+      for (let col = 0; col < this.engine.cols; col += 1) {
+        const filled = snapshot?.filledCells?.find((cellData) => cellData.x === col && cellData.y === row);
+        drawRoundedRect(
+          boardX + col * cell,
+          boardTop + row * cell,
+          cell - 2,
+          cell - 2,
+          7,
+          filled ? this.engine.palette[filled.type] : "rgba(255,255,255,0.04)",
+          "rgba(255,255,255,0.05)"
+        );
+      }
+    }
+
+    snapshot?.activePiece?.matrix?.forEach((row, rowIndex) => {
+      row.forEach((filled, colIndex) => {
+        if (!filled) return;
+        drawRoundedRect(
+          boardX + (snapshot.activePiece.x + colIndex) * cell,
+          boardTop + (snapshot.activePiece.y + rowIndex) * cell,
+          cell - 2,
+          cell - 2,
+          7,
+          this.engine.palette[snapshot.activePiece.type],
+          "rgba(255,255,255,0.22)"
+        );
+      });
+    });
+
+    drawRoundedRect(nextX, boardTop + 18, nextWidth, 120, 22, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
+    ctx.fillStyle = "#ffb86b";
+    ctx.font = "700 13px 'Space Grotesk'";
+    ctx.fillText("NEXT", nextX + 18, boardTop + 44);
+    if (snapshot?.nextPiece) {
+      this.engine.drawPreview(
+        { type: snapshot.nextPiece, matrix: this.engine.shapeDefs[snapshot.nextPiece] },
+        nextX + 18,
+        boardTop + 62,
+        20
+      );
+    } else {
+      ctx.fillStyle = "#8ea4cb";
+      ctx.font = "500 13px 'Noto Sans SC'";
+      ctx.fillText("等待同步", nextX + 18, boardTop + 88);
+    }
+
+    ctx.fillStyle = "#8ea4cb";
+    ctx.font = "500 13px 'Noto Sans SC'";
+    ctx.fillText(`消行 ${snapshot?.lines || 0} 级别 ${snapshot?.level || 1}`, nextX + 18, boardTop + 168);
+    if (snapshot?.gameOver) {
+      drawRoundedRect(x + width / 2 - 110, y + height / 2 - 44, 220, 88, 20, "rgba(5,9,18,0.9)", "rgba(255,111,145,0.38)");
+      ctx.fillStyle = "#ff6f91";
+      ctx.font = "700 24px 'Space Grotesk'";
+      ctx.fillText("GAME OVER", x + width / 2 - 74, y + height / 2 + 4);
+    }
+  }
 
   render(width, height) {
+    this.renderRoomUi();
     ctx.fillStyle = "#08101d";
+    ctx.fillRect(0, 0, width, height);
+
+    const gradient = ctx.createLinearGradient(0, 0, width, height);
+    gradient.addColorStop(0, "rgba(93,244,199,0.16)");
+    gradient.addColorStop(1, "rgba(255,111,145,0.08)");
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, width, height);
 
     const shellX = 28;
     const shellY = 24;
     const shellWidth = width - 56;
     const shellHeight = height - 48;
-    const boardHeight = Math.min(shellHeight - 92, 560);
-    const boardWidth = Math.round((this.cols / this.rows) * boardHeight);
-    this.cell = boardHeight / this.rows;
-    this.offsetX = shellX + Math.max(70, shellWidth * 0.17);
-    this.offsetY = shellY + (shellHeight - boardHeight) / 2;
-    const sidePanelX = this.offsetX + boardWidth + 42;
-    const sidePanelY = this.offsetY + 76;
-
-    const gradient = ctx.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, "rgba(93,244,199,0.18)");
-    gradient.addColorStop(1, "rgba(255,111,145,0.08)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
+    const innerGap = 20;
+    const panelWidth = (shellWidth - 56 - innerGap) / 2;
+    const panelHeight = shellHeight - 64;
+    const match = this.roomState.activeMatch;
+    const defenderId = match?.defenderId || this.roomState.queue[0];
+    const challengerId = match?.challengerId || this.roomState.queue[1];
 
     drawRoundedRect(shellX, shellY, shellWidth, shellHeight, 34, "rgba(4,8,18,0.78)", "rgba(255,255,255,0.08)");
-    drawRoundedRect(this.offsetX - 18, this.offsetY - 18, boardWidth + 36, boardHeight + 36, 28, "rgba(6,10,20,0.9)", "rgba(255,255,255,0.06)");
-
-    for (let y = 0; y < this.rows; y += 1) {
-      for (let x = 0; x < this.cols; x += 1) {
-        drawRoundedRect(
-          this.offsetX + x * this.cell,
-          this.offsetY + y * this.cell,
-          this.cell - 2,
-          this.cell - 2,
-          8,
-          this.board[y][x] ? this.palette[this.board[y][x]] : "rgba(255,255,255,0.04)",
-          "rgba(255,255,255,0.06)"
-        );
-      }
-    }
-
-    if (this.current) {
-      this.current.matrix.forEach((row, rowIndex) => {
-        row.forEach((cell, colIndex) => {
-          if (!cell) return;
-          drawRoundedRect(
-            this.offsetX + (this.current.x + colIndex) * this.cell,
-            this.offsetY + (this.current.y + rowIndex) * this.cell,
-            this.cell - 2,
-            this.cell - 2,
-            8,
-            this.palette[this.current.type],
-            "rgba(255,255,255,0.25)"
-          );
-        });
-      });
-    }
+    this.drawBoardShell(
+      "CURRENT DEFENDER",
+      this.getPlayer(defenderId),
+      this.getRenderedSnapshot(defenderId),
+      shellX + 18,
+      shellY + 18,
+      panelWidth,
+      panelHeight,
+      "#5df4c7",
+      this.getLocalRole() === "defender"
+    );
+    this.drawBoardShell(
+      "CURRENT CHALLENGER",
+      this.getPlayer(challengerId),
+      this.getRenderedSnapshot(challengerId),
+      shellX + 18 + panelWidth + innerGap,
+      shellY + 18,
+      panelWidth,
+      panelHeight,
+      "#ffd86b",
+      this.getLocalRole() === "challenger"
+    );
 
     ctx.fillStyle = "#eef4ff";
-    ctx.font = "700 18px 'Space Grotesk'";
-    ctx.fillText("TETRIS", sidePanelX, this.offsetY + 34);
-    ctx.font = "500 17px 'Noto Sans SC'";
+    ctx.font = "700 16px 'Space Grotesk'";
+    ctx.fillText(formatCountdown(this.getRemainingMs()), width / 2 - 34, shellY + 30);
     ctx.fillStyle = "#8ea4cb";
-    ctx.fillText("保持版面整洁，快速消行。", sidePanelX, this.offsetY + 64);
+    ctx.font = "500 13px 'Noto Sans SC'";
+    ctx.fillText(this.roomState.lastEvent || "等待比赛开始", shellX + 26, shellY + shellHeight - 16);
+  }
 
-    drawRoundedRect(sidePanelX, sidePanelY, 190, 128, 24, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
-    ctx.fillStyle = "#ffb86b";
-    ctx.font = "600 14px 'Space Grotesk'";
-    ctx.fillText("NEXT", sidePanelX + 24, sidePanelY + 34);
-    this.drawPreview(this.next, sidePanelX + 24, sidePanelY + 58);
-
-    drawRoundedRect(shellX + 32, shellY + shellHeight - 72, shellWidth - 64, 44, 18, "rgba(255,255,255,0.05)", "rgba(255,255,255,0.08)");
-    ctx.fillStyle = "#ffd86b";
-    ctx.font = "700 15px 'Space Grotesk'";
-    ctx.fillText("STACK", shellX + 54, shellY + shellHeight - 44);
-    ctx.fillStyle = "#eef4ff";
-    ctx.font = "500 14px 'Noto Sans SC'";
-    ctx.fillText("提前整理凹槽，留出长条位，连续消行更稳。", shellX + 128, shellY + shellHeight - 44);
-
-    if (this.gameOver) {
-      drawRoundedRect(150, 280, 300, 120, 24, "rgba(5,9,18,0.85)", "rgba(255,111,145,0.5)");
-      ctx.fillStyle = "#ff6f91";
-      ctx.font = "700 30px 'Space Grotesk'";
-      ctx.fillText("GAME OVER", 188, 335);
-      ctx.fillStyle = "#eef4ff";
-      ctx.font = "500 16px 'Noto Sans SC'";
-      ctx.fillText("按 R 重新开始", 234, 368);
-    }
+  renderRoomUi() {
+    roomIdEl.textContent = `ROOM ${this.roomId}`;
+    const roleLabels = {
+      defender: "你是当前擂主",
+      challenger: "你是当前挑战者",
+      spectator: "正在观战",
+      waiting: "等待下一位玩家",
+    };
+    roomRoleEl.textContent = roleLabels[this.getLocalRole()] || "等待排位";
+    const active = this.roomState.activeMatch;
+    playerQueueEl.innerHTML = this.roomState.queue
+      .map((playerId, index) => {
+        const player = this.getPlayer(playerId);
+        const isSelf = playerId === this.localPlayerId;
+        const role =
+          active?.defenderId === playerId ? "擂主" : active?.challengerId === playerId ? "挑战者" : `排队 ${index + 1}`;
+        const actionAttr = isSelf ? `data-action="rename-player"` : "";
+        const roleClass =
+          active?.defenderId === playerId
+            ? "is-active is-defender"
+            : active?.challengerId === playerId
+              ? "is-active is-challenger"
+              : "";
+        return `
+          <div class="queue-player ${isSelf ? "is-self" : ""} ${roleClass}">
+            <div class="queue-avatar" style="background:${player?.color || "#5df4c7"}">${(player?.name || "?").slice(0, 1)}</div>
+            <button type="button" ${actionAttr}>
+              <strong>${player?.name || "待加入玩家"}${isSelf ? " · 我" : ""}</strong>
+              <small>${role}</small>
+            </button>
+          </div>
+        `;
+      })
+      .join("");
   }
 
   getHudStats() {
+    const match = this.roomState.activeMatch;
     return [
-      ["分数", this.score],
-      ["消除行数", this.lines],
-      ["等级", this.level],
-      ["状态", this.gameOver ? "已结束" : "进行中"],
+      ["房间号", this.roomId],
+      ["在线人数", this.roomState.players.length],
+      ["当前回合", match?.round || 0],
+      ["剩余时间", formatCountdown(this.getRemainingMs())],
+      ["当前状态", match ? this.roomState.lastEvent : "等待第二位玩家加入"],
+      ["你的身份", roomRoleEl.textContent],
     ];
   }
 
   getTextState() {
+    const match = this.roomState.activeMatch;
     return {
-      mode: "tetris",
-      coordinateSystem: "origin top-left, x right, y down, board 10x20",
-      score: this.score,
-      lines: this.lines,
-      level: this.level,
-      gameOver: this.gameOver,
-      activePiece: this.current ? { type: this.current.type, x: this.current.x, y: this.current.y } : null,
-      nextPiece: this.next?.type ?? null,
-      filledCells: this.board.flatMap((row, y) =>
-        row.map((cell, x) => (cell ? { x, y, type: cell } : null)).filter(Boolean)
-      ),
+      mode: "tetris-multiplayer",
+      coordinateSystem: "origin top-left, x right, y down, each board 10x20",
+      roomId: this.roomId,
+      localPlayerId: this.localPlayerId,
+      role: this.getLocalRole(),
+      queue: this.roomState.queue.map((playerId) => ({
+        id: playerId,
+        name: this.getPlayer(playerId)?.name || "待加入玩家",
+      })),
+      activeMatch: match
+        ? {
+            round: match.round,
+            defenderId: match.defenderId,
+            challengerId: match.challengerId,
+            remainingMs: Math.max(0, this.getRemainingMs()),
+          }
+        : null,
+      boards: {
+        defender: this.getRenderedSnapshot(match?.defenderId || this.roomState.queue[0]) || null,
+        challenger: this.getRenderedSnapshot(match?.challengerId || this.roomState.queue[1]) || null,
+      },
     };
   }
 }
@@ -1259,6 +1729,8 @@ function renderInfo(gameId) {
     .map(([label, text]) => `<div class="control-line"><strong>${label}</strong><span>${text}</span></div>`)
     .join("");
   tabEls.forEach((tab) => tab.classList.toggle("active", tab.dataset.game === gameId));
+  roomBarEl.hidden = gameId !== "tetris";
+  if (gameId === "tetris") games.tetris.renderRoomUi();
 }
 
 function updateHud() {
@@ -1342,6 +1814,9 @@ window.advanceTime = (ms) => {
 window.arcadia = {
   switchGame,
   games,
+  getRoomState() {
+    return games.tetris.getTextState();
+  },
   getCatCellCenter(row, col) {
     return games.cat.getCellCenter(row, col);
   },

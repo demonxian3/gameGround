@@ -1,33 +1,159 @@
 {
   "tetris-initial": {
-    "mode": "tetris",
-    "coordinateSystem": "origin top-left, x right, y down, board 10x20",
-    "score": 0,
-    "lines": 0,
-    "level": 1,
-    "gameOver": false,
-    "activePiece": {
-      "type": "S",
-      "x": 3,
-      "y": 3
+    "mode": "tetris-multiplayer",
+    "coordinateSystem": "origin top-left, x right, y down, each board 10x20",
+    "roomId": "HYKTZY",
+    "localPlayerId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+    "role": "defender",
+    "queue": [
+      {
+        "id": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+        "name": "极光清行机"
+      },
+      {
+        "id": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+        "name": "霓虹守擂者"
+      }
+    ],
+    "activeMatch": {
+      "round": 1,
+      "defenderId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+      "challengerId": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+      "remainingMs": 298126
     },
-    "nextPiece": "I",
-    "filledCells": []
+    "boards": {
+      "defender": {
+        "score": 0,
+        "lines": 0,
+        "level": 1,
+        "gameOver": false,
+        "activePiece": {
+          "type": "L",
+          "x": 4,
+          "y": 1,
+          "matrix": [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        "nextPiece": "I",
+        "filledCells": [],
+        "playerId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+        "name": "极光清行机"
+      },
+      "challenger": {
+        "score": 0,
+        "lines": 0,
+        "level": 1,
+        "gameOver": false,
+        "activePiece": {
+          "type": "I",
+          "x": 3,
+          "y": 1,
+          "matrix": [
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ]
+        },
+        "nextPiece": "I",
+        "filledCells": [],
+        "playerId": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+        "timestamp": 1774103578213,
+        "name": "霓虹守擂者"
+      }
+    }
   },
   "tetris-play": {
-    "mode": "tetris",
-    "coordinateSystem": "origin top-left, x right, y down, board 10x20",
-    "score": 0,
-    "lines": 0,
-    "level": 1,
-    "gameOver": false,
-    "activePiece": {
-      "type": "S",
-      "x": 3,
-      "y": 3
+    "mode": "tetris-multiplayer",
+    "coordinateSystem": "origin top-left, x right, y down, each board 10x20",
+    "roomId": "HYKTZY",
+    "localPlayerId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+    "role": "defender",
+    "queue": [
+      {
+        "id": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+        "name": "极光清行机"
+      },
+      {
+        "id": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+        "name": "霓虹守擂者"
+      }
+    ],
+    "activeMatch": {
+      "round": 1,
+      "defenderId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+      "challengerId": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+      "remainingMs": 297126
     },
-    "nextPiece": "I",
-    "filledCells": []
+    "boards": {
+      "defender": {
+        "score": 0,
+        "lines": 0,
+        "level": 1,
+        "gameOver": false,
+        "activePiece": {
+          "type": "L",
+          "x": 4,
+          "y": 2,
+          "matrix": [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        },
+        "nextPiece": "I",
+        "filledCells": [],
+        "playerId": "3fa13e30-4a6f-4edb-86b0-a5a53c564212",
+        "name": "极光清行机"
+      },
+      "challenger": {
+        "score": 0,
+        "lines": 0,
+        "level": 1,
+        "gameOver": false,
+        "activePiece": {
+          "type": "I",
+          "x": 3,
+          "y": 1,
+          "matrix": [
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ]
+        },
+        "nextPiece": "I",
+        "filledCells": [],
+        "playerId": "78b773d3-9ef2-493d-b2f7-d0141975fcfc",
+        "timestamp": 1774103579000,
+        "name": "霓虹守擂者"
+      }
+    }
   },
   "snake-initial": {
     "mode": "snake",
@@ -54,8 +180,8 @@
       }
     ],
     "food": {
-      "x": 19,
-      "y": 12
+      "x": 16,
+      "y": 19
     },
     "obstacles": []
   },
@@ -71,21 +197,21 @@
     },
     "snake": [
       {
-        "x": 14,
-        "y": 10
-      },
-      {
         "x": 13,
         "y": 10
       },
       {
         "x": 12,
         "y": 10
+      },
+      {
+        "x": 11,
+        "y": 10
       }
     ],
     "food": {
-      "x": 19,
-      "y": 12
+      "x": 16,
+      "y": 19
     },
     "obstacles": []
   },
@@ -105,51 +231,40 @@
       {
         "id": 1,
         "x": 620,
-        "y": 182.4,
-        "angle": 2.79,
+        "y": 164,
+        "angle": 2.75,
         "hp": 2
       },
       {
         "id": 2,
         "x": 740,
-        "y": 197.6,
-        "angle": 2.88,
+        "y": 216,
+        "angle": 2.91,
         "hp": 2
       },
       {
         "id": 3,
         "x": 620,
-        "y": 382.4,
-        "angle": -3.09,
+        "y": 364,
+        "angle": -3.13,
         "hp": 2
       },
       {
         "id": 4,
         "x": 740,
-        "y": 397.6,
-        "angle": -3.08,
+        "y": 416,
+        "angle": -3.05,
         "hp": 2
       },
       {
         "id": 5,
         "x": 620,
-        "y": 582.4,
-        "angle": -2.71,
+        "y": 564,
+        "angle": -2.74,
         "hp": 2
       }
     ],
-    "projectiles": [
-      {
-        "owner": "enemy",
-        "x": 543.5,
-        "y": 200
-      },
-      {
-        "owner": "enemy",
-        "x": 710.7,
-        "y": 208.6
-      }
-    ]
+    "projectiles": []
   },
   "tank-play": {
     "mode": "tank",
@@ -158,7 +273,7 @@
     "gameOver": false,
     "win": false,
     "player": {
-      "x": 187.5,
+      "x": 168.5,
       "y": 360,
       "angle": 0,
       "hp": 5
@@ -167,69 +282,54 @@
       {
         "id": 1,
         "x": 620,
-        "y": 222.4,
-        "angle": 2.83,
+        "y": 192.8,
+        "angle": 2.79,
         "hp": 2
       },
       {
         "id": 2,
         "x": 740,
-        "y": 157.6,
-        "angle": 2.79,
+        "y": 187.2,
+        "angle": 2.85,
         "hp": 2
       },
       {
         "id": 3,
         "x": 620,
-        "y": 422.4,
-        "angle": -3,
+        "y": 392.8,
+        "angle": -3.07,
         "hp": 2
       },
       {
         "id": 4,
         "x": 740,
-        "y": 357.6,
-        "angle": 3.14,
+        "y": 387.2,
+        "angle": -3.09,
         "hp": 2
       },
       {
         "id": 5,
         "x": 620,
-        "y": 601.6,
-        "angle": -2.63,
+        "y": 592.8,
+        "angle": -2.67,
         "hp": 2
       }
     ],
     "projectiles": [
       {
         "owner": "enemy",
-        "x": 342,
-        "y": 279.9
+        "x": 500.1,
+        "y": 221.4
       },
       {
         "owner": "enemy",
-        "x": 501.2,
-        "y": 264.2
+        "x": 652.3,
+        "y": 225.9
       },
       {
         "owner": "enemy",
-        "x": 416.6,
-        "y": 375.2
-      },
-      {
-        "owner": "enemy",
-        "x": 588.4,
-        "y": 376.8
-      },
-      {
-        "owner": "enemy",
-        "x": 521.8,
-        "y": 548.6
-      },
-      {
-        "owner": "enemy",
-        "x": 591.1,
-        "y": 228.6
+        "x": 581.1,
+        "y": 385.6
       }
     ]
   },
@@ -247,40 +347,44 @@
     "shortestEscapeRoute": [],
     "blockedCells": [
       {
-        "row": 1,
+        "row": 0,
+        "col": 1
+      },
+      {
+        "row": 0,
         "col": 3
       },
       {
         "row": 1,
-        "col": 5
-      },
-      {
-        "row": 2,
-        "col": 1
+        "col": 2
       },
       {
         "row": 3,
-        "col": 1
+        "col": 6
       },
       {
         "row": 3,
-        "col": 10
+        "col": 8
       },
       {
         "row": 5,
-        "col": 4
+        "col": 0
       },
       {
         "row": 5,
-        "col": 9
+        "col": 1
+      },
+      {
+        "row": 5,
+        "col": 7
       },
       {
         "row": 7,
-        "col": 9
+        "col": 8
       },
       {
-        "row": 10,
-        "col": 7
+        "row": 9,
+        "col": 5
       }
     ]
   },
@@ -312,33 +416,41 @@
       },
       {
         "row": 1,
-        "col": 4
+        "col": 3
       },
       {
         "row": 0,
-        "col": 3
+        "col": 2
       }
     ],
     "blockedCells": [
       {
-        "row": 1,
+        "row": 0,
+        "col": 1
+      },
+      {
+        "row": 0,
         "col": 3
       },
       {
         "row": 1,
-        "col": 5
-      },
-      {
-        "row": 2,
-        "col": 1
+        "col": 2
       },
       {
         "row": 3,
-        "col": 1
+        "col": 6
       },
       {
         "row": 3,
-        "col": 10
+        "col": 8
+      },
+      {
+        "row": 5,
+        "col": 0
+      },
+      {
+        "row": 5,
+        "col": 1
       },
       {
         "row": 5,
@@ -346,11 +458,7 @@
       },
       {
         "row": 5,
-        "col": 4
-      },
-      {
-        "row": 5,
-        "col": 9
+        "col": 7
       },
       {
         "row": 6,
@@ -358,11 +466,11 @@
       },
       {
         "row": 7,
-        "col": 9
+        "col": 8
       },
       {
-        "row": 10,
-        "col": 7
+        "row": 9,
+        "col": 5
       }
     ]
   }
