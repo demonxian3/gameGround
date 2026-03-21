@@ -71,7 +71,15 @@
                 <span id="room-role">等待排位</span>
               </div>
             </div>
-            <button class="invite-btn" id="invite-btn" type="button">复制邀请链接</button>
+            <div class="room-actions">
+              <div class="invite-slot">
+                <button class="invite-btn" id="invite-btn" type="button">复制邀请链接</button>
+              </div>
+              <div class="mode-segment" id="mode-segment" role="tablist" aria-label="模式切换">
+                <button class="mode-option active" id="mode-single-btn" type="button" data-mode="single">单人模式</button>
+                <button class="mode-option" id="mode-multi-btn" type="button" data-mode="multi">联机模式</button>
+              </div>
+            </div>
           </div>
           <div class="player-queue" id="player-queue"></div>
         </section>

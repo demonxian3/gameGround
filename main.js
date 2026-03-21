@@ -11,8 +11,14 @@ const roomIdEl = document.getElementById("room-id");
 const roomRoleEl = document.getElementById("room-role");
 const inviteBtnEl = document.getElementById("invite-btn");
 const playerQueueEl = document.getElementById("player-queue");
+const modeSegmentEl = document.getElementById("mode-segment");
+const modeOptionEls = [...document.querySelectorAll(".mode-option")];
 
 const keysDown = new Set();
+const GAME_STORAGE_KEY = "arcadia-active-game";
+const MODE_STORAGE_KEY = "arcadia-run-mode";
+const MULTI_MODE = "multi";
+const SINGLE_MODE = "single";
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -29,6 +35,33 @@ function createId() {
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function readStoredValue(key, fallback) {
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function storeValue(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function normalizeMode(value) {
+  return value === MULTI_MODE ? MULTI_MODE : SINGLE_MODE;
+}
+
+function getMappedKeys(event) {
+  const mapped = new Set([event.key, event.code]);
+  if (event.code === "KeyW" || event.key === "w" || event.key === "W") mapped.add("ArrowUp");
+  if (event.code === "KeyA" || event.key === "a" || event.key === "A") mapped.add("ArrowLeft");
+  if (event.code === "KeyS" || event.key === "s" || event.key === "S") mapped.add("ArrowDown");
+  if (event.code === "KeyD" || event.key === "d" || event.key === "D") mapped.add("ArrowRight");
+  return [...mapped];
 }
 
 function formatCountdown(ms) {
@@ -75,9 +108,9 @@ const GAME_META = {
       ["流转", "胜者守擂留在左侧，败者自动掉到队尾继续排队。"],
     ],
     controls: [
-      ["移动", "← / →"],
-      ["旋转", "↑"],
-      ["软降", "↓"],
+      ["移动", "← / → / A / D"],
+      ["旋转", "↑ / W"],
+      ["软降", "↓ / S"],
       ["硬降", "Space"],
       ["投降", "R"],
     ],
@@ -91,7 +124,7 @@ const GAME_META = {
       ["压力", "分数越高，刷新障碍越密集。"],
     ],
     controls: [
-      ["方向", "↑ ↓ ← →"],
+      ["方向", "↑ ↓ ← → / WASD"],
       ["冲刺", "Space"],
       ["重开", "R"],
     ],
@@ -105,7 +138,7 @@ const GAME_META = {
       ["挑战", "敌人会主动瞄准并回击。"],
     ],
     controls: [
-      ["移动", "↑ ↓ ← →"],
+      ["移动", "↑ ↓ ← → / WASD"],
       ["开火", "Space"],
       ["重开", "R"],
     ],
@@ -344,19 +377,20 @@ class TetrisGame {
     this.matchDurationMs = 5 * 60 * 1000;
     this.localPlayerId = sessionStorage.getItem("arcadia-player-id") || createId();
     sessionStorage.setItem("arcadia-player-id", this.localPlayerId);
-    this.roomId = this.resolveRoomId();
-    this.channel = "BroadcastChannel" in window ? new BroadcastChannel(`arcadia-room-${this.roomId}`) : null;
-    this.channel?.addEventListener("message", (event) => this.handleRemoteState(event.data));
+    this.mode = normalizeMode(readStoredValue(MODE_STORAGE_KEY, SINGLE_MODE));
+    this.roomId = null;
+    this.channel = null;
+    this.heartbeat = null;
+    this.isMultiplayer = false;
     window.addEventListener("storage", (event) => this.handleStorageEvent(event));
-    window.addEventListener("beforeunload", () => this.leaveRoom());
+    window.addEventListener("beforeunload", () => this.handleBeforeUnload());
     this.queueRenderState = null;
     this.lastRoundSeen = null;
     this.lastPublishedState = "";
     this.publishAccumulator = 0;
-    this.roomState = this.readState();
-    this.registerLocalPlayer();
     this.bindRoomUi();
-    this.heartbeat = window.setInterval(() => this.refreshPresence(), this.heartbeatMs);
+    this.roomState = this.getEmptyState();
+    if (this.mode === MULTI_MODE) this.connectMultiplayer();
   }
 
   resolveRoomId() {
@@ -388,6 +422,59 @@ class TetrisGame {
       if (!trigger) return;
       this.renameLocalPlayer();
     });
+
+    modeSegmentEl?.addEventListener("click", (event) => {
+      const option = event.target.closest("[data-mode]");
+      if (!option) return;
+      this.setMode(option.dataset.mode);
+    });
+  }
+
+  handleBeforeUnload() {
+    if (!this.isMultiplayer) return;
+    this.leaveRoom();
+  }
+
+  connectMultiplayer() {
+    if (this.isMultiplayer) return;
+    this.mode = MULTI_MODE;
+    this.isMultiplayer = true;
+    this.roomId = this.resolveRoomId();
+    this.roomState = this.readState();
+    this.channel = "BroadcastChannel" in window ? new BroadcastChannel(`arcadia-room-${this.roomId}`) : null;
+    this.channel?.addEventListener("message", (event) => this.handleRemoteState(event.data));
+    this.registerLocalPlayer();
+    this.heartbeat = window.setInterval(() => this.refreshPresence(), this.heartbeatMs);
+    this.renderRoomUi();
+  }
+
+  disconnectMultiplayer() {
+    if (!this.isMultiplayer) return;
+    this.leaveRoom();
+    this.channel?.close();
+    this.channel = null;
+    this.isMultiplayer = false;
+    this.heartbeat = null;
+    this.roomState = this.getEmptyState();
+    this.lastRoundSeen = null;
+    this.lastPublishedState = "";
+    this.publishAccumulator = 0;
+    this.renderRoomUi();
+  }
+
+  setMode(nextMode) {
+    const normalized = normalizeMode(nextMode);
+    if (normalized === this.mode) return;
+    if (normalized === MULTI_MODE) {
+      this.connectMultiplayer();
+    } else {
+      this.disconnectMultiplayer();
+      this.mode = SINGLE_MODE;
+      this.engine.reset();
+    }
+    storeValue(MODE_STORAGE_KEY, this.mode);
+    this.renderRoomUi();
+    draw();
   }
 
   randomName() {
@@ -407,12 +494,13 @@ class TetrisGame {
   }
 
   get storageKey() {
+    if (!this.roomId) return null;
     return `${this.storageKeyPrefix}-${this.roomId}`;
   }
 
   getEmptyState() {
     return {
-      roomId: this.roomId,
+      roomId: this.roomId || "LOCAL",
       players: [],
       queue: [],
       snapshots: {},
@@ -424,6 +512,7 @@ class TetrisGame {
   }
 
   readState() {
+    if (!this.storageKey) return this.getEmptyState();
     try {
       const raw = localStorage.getItem(this.storageKey);
       if (!raw) return this.getEmptyState();
@@ -434,6 +523,7 @@ class TetrisGame {
   }
 
   writeState(state) {
+    if (!this.storageKey) return;
     const next = this.reconcileState(state);
     next.updatedAt = Date.now();
     localStorage.setItem(this.storageKey, JSON.stringify(next));
@@ -443,6 +533,7 @@ class TetrisGame {
   }
 
   handleRemoteState(remoteState) {
+    if (!this.isMultiplayer) return;
     if (!remoteState || remoteState.roomId !== this.roomId) return;
     if ((remoteState.updatedAt || 0) < (this.roomState.updatedAt || 0)) return;
     this.roomState = this.reconcileState(remoteState);
@@ -450,6 +541,7 @@ class TetrisGame {
   }
 
   handleStorageEvent(event) {
+    if (!this.isMultiplayer || !this.storageKey) return;
     if (event.key !== this.storageKey || !event.newValue) return;
     this.handleRemoteState(JSON.parse(event.newValue));
   }
@@ -490,6 +582,7 @@ class TetrisGame {
   }
 
   mutateState(mutator) {
+    if (!this.isMultiplayer) return;
     const draft = this.readState();
     mutator(draft);
     this.writeState(draft);
@@ -510,6 +603,7 @@ class TetrisGame {
   }
 
   refreshPresence() {
+    if (!this.isMultiplayer) return;
     this.mutateState((state) => {
       const local = state.players.find((player) => player.id === this.localPlayerId);
       if (!local) {
@@ -522,7 +616,8 @@ class TetrisGame {
   }
 
   leaveRoom() {
-    window.clearInterval(this.heartbeat);
+    if (!this.isMultiplayer) return;
+    if (this.heartbeat) window.clearInterval(this.heartbeat);
     this.mutateState((state) => {
       state.players = state.players.filter((player) => player.id !== this.localPlayerId);
       state.queue = state.queue.filter((id) => id !== this.localPlayerId);
@@ -537,6 +632,7 @@ class TetrisGame {
   }
 
   renameLocalPlayer() {
+    if (!this.isMultiplayer) return;
     const current = this.getLocalPlayer()?.name || "";
     const nextName = window.prompt("输入新的昵称", current);
     if (!nextName) return;
@@ -551,6 +647,7 @@ class TetrisGame {
   }
 
   getLocalPlayer() {
+    if (!this.isMultiplayer) return { id: "single-player", name: "单人玩家" };
     return this.roomState.players.find((player) => player.id === this.localPlayerId) || null;
   }
 
@@ -559,10 +656,12 @@ class TetrisGame {
   }
 
   getPlayer(playerId) {
+    if (!this.isMultiplayer) return playerId ? { id: playerId, name: "单人玩家" } : null;
     return this.roomState.players.find((player) => player.id === playerId) || null;
   }
 
   getLocalRole() {
+    if (!this.isMultiplayer) return "single";
     const match = this.roomState.activeMatch;
     if (!match) return this.roomState.queue[0] === this.localPlayerId ? "waiting" : "spectator";
     if (match.defenderId === this.localPlayerId) return "defender";
@@ -575,12 +674,14 @@ class TetrisGame {
   }
 
   getRemainingMs() {
+    if (!this.isMultiplayer) return 0;
     const match = this.roomState.activeMatch;
     if (!match) return this.matchDurationMs;
     return match.startedAt + match.durationMs - Date.now();
   }
 
   resetForNewRound() {
+    if (!this.isMultiplayer) return;
     const match = this.roomState.activeMatch;
     if (!match) return;
     if (this.lastRoundSeen === match.round) return;
@@ -603,6 +704,7 @@ class TetrisGame {
   }
 
   publishSnapshot(force = false) {
+    if (!this.isMultiplayer) return;
     if (!this.isLocalActive()) return;
     const snapshot = {
       ...this.engine.getSnapshot(),
@@ -619,6 +721,13 @@ class TetrisGame {
   }
 
   getRenderedSnapshot(playerId) {
+    if (!this.isMultiplayer) {
+      return {
+        ...this.engine.getSnapshot(),
+        playerId: "single-player",
+        name: "单人玩家",
+      };
+    }
     if (!playerId) return null;
     if (playerId === this.localPlayerId) {
       return {
@@ -631,6 +740,7 @@ class TetrisGame {
   }
 
   maybeResolveByTimer() {
+    if (!this.isMultiplayer) return;
     const match = this.roomState.activeMatch;
     if (!match || this.getRemainingMs() > 0) return;
     const defender = this.getRenderedSnapshot(match.defenderId);
@@ -642,6 +752,16 @@ class TetrisGame {
   }
 
   update(dt) {
+    if (!this.isMultiplayer) {
+      if (keysDown.has("r") || keysDown.has("R")) {
+        keysDown.delete("r");
+        keysDown.delete("R");
+        this.engine.reset();
+        return;
+      }
+      this.engine.update(dt, true);
+      return;
+    }
     this.roomState = this.readState();
     this.resetForNewRound();
     if (this.isLocalActive()) {
@@ -769,6 +889,30 @@ class TetrisGame {
     const shellY = 24;
     const shellWidth = width - 56;
     const shellHeight = height - 48;
+
+    if (!this.isMultiplayer) {
+      drawRoundedRect(shellX, shellY, shellWidth, shellHeight, 34, "rgba(4,8,18,0.78)", "rgba(255,255,255,0.08)");
+      const panelWidth = Math.min(shellWidth - 36, 760);
+      const panelHeight = shellHeight - 36;
+      const panelX = shellX + (shellWidth - panelWidth) / 2;
+      const panelY = shellY + 18;
+      this.drawBoardShell(
+        "SINGLE PLAYER",
+        { id: "single-player", name: "单人玩家" },
+        this.engine.getSnapshot(),
+        panelX,
+        panelY,
+        panelWidth,
+        panelHeight,
+        "#5df4c7",
+        true
+      );
+      ctx.fillStyle = "#8ea4cb";
+      ctx.font = "500 13px 'Noto Sans SC'";
+      ctx.fillText("本地练习模式，刷新后会保留你的模式选择。", shellX + 26, shellY + shellHeight - 16);
+      return;
+    }
+
     const innerGap = 20;
     const panelWidth = (shellWidth - 56 - innerGap) / 2;
     const panelHeight = shellHeight - 64;
@@ -809,6 +953,23 @@ class TetrisGame {
   }
 
   renderRoomUi() {
+    modeOptionEls.forEach((option) => option.classList.toggle("active", option.dataset.mode === this.mode));
+    inviteBtnEl.hidden = this.mode !== MULTI_MODE;
+    if (!this.isMultiplayer) {
+      roomIdEl.textContent = "SINGLE PLAYER";
+      roomRoleEl.textContent = "本地练习";
+      playerQueueEl.innerHTML = `
+        <div class="queue-player is-self">
+          <div class="queue-avatar" style="background:#5df4c7">单</div>
+          <button type="button" disabled>
+            <strong>单人模式</strong>
+            <small>本地游戏，不加入房间</small>
+          </button>
+        </div>
+      `;
+      return;
+    }
+
     roomIdEl.textContent = `ROOM ${this.roomId}`;
     const roleLabels = {
       defender: "你是当前擂主",
@@ -845,6 +1006,17 @@ class TetrisGame {
   }
 
   getHudStats() {
+    if (!this.isMultiplayer) {
+      const snapshot = this.engine.getSnapshot();
+      return [
+        ["模式", "单人模式"],
+        ["分数", snapshot.score],
+        ["消行", snapshot.lines],
+        ["等级", snapshot.level],
+        ["状态", snapshot.gameOver ? "已失败，按 R 重开" : "本地练习中"],
+        ["控制", "方向键 / WASD"],
+      ];
+    }
     const match = this.roomState.activeMatch;
     return [
       ["房间号", this.roomId],
@@ -857,6 +1029,13 @@ class TetrisGame {
   }
 
   getTextState() {
+    if (!this.isMultiplayer) {
+      return {
+        mode: "tetris-single",
+        coordinateSystem: "origin top-left, x right, y down, board 10x20",
+        board: this.engine.getSnapshot(),
+      };
+    }
     const match = this.roomState.activeMatch;
     return {
       mode: "tetris-multiplayer",
@@ -1715,9 +1894,13 @@ const games = {
   cat: new CircleTheCatGame(),
 };
 
-let activeGameId = "tetris";
+const initialGameId = readStoredValue(GAME_STORAGE_KEY, "tetris");
+let activeGameId = GAME_META[initialGameId] ? initialGameId : "tetris";
 let lastTime = performance.now();
 let layoutFrame = 0;
+
+storeValue(GAME_STORAGE_KEY, activeGameId);
+storeValue(MODE_STORAGE_KEY, games.tetris.mode);
 
 function renderInfo(gameId) {
   const meta = GAME_META[gameId];
@@ -1767,7 +1950,9 @@ function tick(now) {
 }
 
 function switchGame(gameId) {
+  if (!GAME_META[gameId]) return;
   activeGameId = gameId;
+  storeValue(GAME_STORAGE_KEY, gameId);
   renderInfo(gameId);
   draw();
 }
@@ -1796,12 +1981,13 @@ window.addEventListener("keydown", (event) => {
     }
     return;
   }
-  keysDown.add(event.key);
-  if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(event.key)) event.preventDefault();
+  const mappedKeys = getMappedKeys(event);
+  mappedKeys.forEach((key) => keysDown.add(key));
+  if (mappedKeys.some((key) => ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(key))) event.preventDefault();
 });
 
 window.addEventListener("keyup", (event) => {
-  keysDown.delete(event.key);
+  getMappedKeys(event).forEach((key) => keysDown.delete(key));
 });
 
 window.addEventListener("resize", () => {

@@ -219,6 +219,21 @@ body {
   gap: 10px;
 }
 
+.room-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.invite-slot {
+  width: 128px;
+  display: flex;
+  justify-content: flex-end;
+  flex: 0 0 128px;
+}
+
 .room-label {
   margin: 0 0 4px;
   color: var(--accent-warm);
@@ -256,8 +271,43 @@ body {
 }
 
 .invite-btn {
+  width: 100%;
   padding: 7px 12px;
   white-space: nowrap;
+}
+
+.mode-segment {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.mode-option {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 7px 12px;
+  white-space: nowrap;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.mode-option.active {
+  color: var(--text);
+  background: linear-gradient(135deg, rgba(93, 244, 199, 0.2), rgba(255, 111, 145, 0.16));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
 }
 
 .invite-btn:hover,
@@ -488,6 +538,16 @@ kbd {
     align-items: flex-start;
     flex-direction: column;
   }
+
+  .room-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .invite-slot {
+    width: 128px;
+    flex-basis: 128px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -514,5 +574,23 @@ kbd {
 
   .hero-strip {
     gap: 8px;
+  }
+
+  .room-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-slot {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .mode-segment {
+    width: 100%;
+  }
+
+  .mode-option {
+    flex: 1 1 50%;
   }
 }
