@@ -4,13 +4,32 @@
   "description": "",
   "main": "main.js",
   "scripts": {
+    "build:backend": "tsc -p tsconfig.json",
+    "dev": "node scripts/dev.mjs",
+    "dev:frontend": "node scripts/dev-frontend.mjs",
+    "start:backend": "ts-node -r tsconfig-paths/register server/src/main.ts",
+    "start:backend:prod": "node dist/main.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@nestjs/common": "^11.1.17",
+    "@nestjs/core": "^11.1.17",
+    "@nestjs/platform-express": "^11.1.17",
+    "@nestjs/platform-socket.io": "^11.1.17",
+    "@nestjs/websockets": "^11.1.17",
     "playwright": "^1.58.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
     "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "socket.io-client": "^4.8.3",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
   }
 }

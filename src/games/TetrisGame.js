@@ -2,7 +2,6 @@ import { TetrisEngine } from "./TetrisEngine.js";
 import { MODE_STORAGE_KEY, MULTI_MODE, SINGLE_MODE } from "../shared/constants.js";
 import {
   createId,
-  deepClone,
   drawRoundedRect,
   formatCountdown,
   normalizeMode,
@@ -10,6 +9,7 @@ import {
   readStoredValue,
   storeValue,
 } from "../shared/utils.js";
+import { io } from "/node_modules/socket.io-client/dist/socket.io.esm.min.js";
 
 export class TetrisGame {
   constructor({ canvas, ctx, keysDown, ui, requestRender }) {
@@ -20,25 +20,41 @@ export class TetrisGame {
     this.requestRender = requestRender;
     this.engine = new TetrisEngine({ randomInt, drawRoundedRect });
     this.playerColors = ["#5df4c7", "#ffd86b", "#ff8aa7", "#79a8ff", "#c9ff70", "#ffb86b"];
-    this.storageKeyPrefix = "arcadia-grid-room";
-    this.roomTtlMs = 20000;
-    this.heartbeatMs = 2500;
     this.matchDurationMs = 5 * 60 * 1000;
     this.localPlayerId = sessionStorage.getItem("arcadia-player-id") || createId();
+    this.localPlayerColor = sessionStorage.getItem("arcadia-player-color") || this.playerColors[randomInt(0, this.playerColors.length - 1)];
     sessionStorage.setItem("arcadia-player-id", this.localPlayerId);
-    this.mode = normalizeMode(readStoredValue(MODE_STORAGE_KEY, SINGLE_MODE), MULTI_MODE, SINGLE_MODE);
+    sessionStorage.setItem("arcadia-player-color", this.localPlayerColor);
+    this.mode = normalizeMode(this.resolveInitialMode(), MULTI_MODE, SINGLE_MODE);
     this.roomId = null;
-    this.channel = null;
-    this.heartbeat = null;
+    this.socket = null;
     this.isMultiplayer = false;
     this.lastRoundSeen = null;
     this.lastPublishedState = "";
     this.publishAccumulator = 0;
-    window.addEventListener("storage", (event) => this.handleStorageEvent(event));
+    this.lastEvent = "等待第二位玩家加入后自动开赛";
     window.addEventListener("beforeunload", () => this.handleBeforeUnload());
     this.bindRoomUi();
     this.roomState = this.getEmptyState();
     if (this.mode === MULTI_MODE) this.connectMultiplayer();
+  }
+
+  resolveInitialMode() {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("room")) return MULTI_MODE;
+    return readStoredValue(MODE_STORAGE_KEY, SINGLE_MODE);
+  }
+
+  get serverUrl() {
+    const configuredServerUrl = window.__ARCADIA_CONFIG__?.serverUrl?.trim();
+    if (configuredServerUrl) return configuredServerUrl;
+
+    const { protocol, hostname, origin, port } = window.location;
+    const isLocalDevHost = ["127.0.0.1", "localhost"].includes(hostname);
+    if (port === "4173" || (isLocalDevHost && port !== "3001")) {
+      return `${protocol}//${hostname}:3001`;
+    }
+    return origin;
   }
 
   resolveRoomId() {
@@ -77,7 +93,7 @@ export class TetrisGame {
   }
 
   handleBeforeUnload() {
-    if (this.isMultiplayer) this.leaveRoom();
+    if (this.isMultiplayer) this.socket?.disconnect();
   }
 
   connectMultiplayer() {
@@ -85,25 +101,25 @@ export class TetrisGame {
     this.mode = MULTI_MODE;
     this.isMultiplayer = true;
     this.roomId = this.resolveRoomId();
-    this.roomState = this.readState();
-    this.channel = "BroadcastChannel" in window ? new BroadcastChannel(`arcadia-room-${this.roomId}`) : null;
-    this.channel?.addEventListener("message", (event) => this.handleRemoteState(event.data));
-    this.registerLocalPlayer();
-    this.heartbeat = window.setInterval(() => this.refreshPresence(), this.heartbeatMs);
+    this.roomState = this.getEmptyState();
+    this.socket = io(this.serverUrl, {
+      autoConnect: true,
+      reconnection: true,
+    });
+    this.bindSocketEvents();
     this.renderRoomUi();
   }
 
   disconnectMultiplayer() {
     if (!this.isMultiplayer) return;
-    this.leaveRoom();
-    this.channel?.close();
-    this.channel = null;
+    this.socket?.disconnect();
+    this.socket = null;
     this.isMultiplayer = false;
-    this.heartbeat = null;
     this.roomState = this.getEmptyState();
     this.lastRoundSeen = null;
     this.lastPublishedState = "";
     this.publishAccumulator = 0;
+    this.lastEvent = "本地练习模式";
     this.renderRoomUi();
   }
 
@@ -132,144 +148,92 @@ export class TetrisGame {
     return {
       id: this.localPlayerId,
       name: localStorage.getItem(`arcadia-player-name-${this.roomId}`) || this.randomName(),
-      color: this.playerColors[randomInt(0, this.playerColors.length - 1)],
+      color: this.localPlayerColor,
       joinedAt: Date.now(),
       lastSeen: Date.now(),
     };
   }
 
-  get storageKey() {
-    return this.roomId ? `${this.storageKeyPrefix}-${this.roomId}` : null;
-  }
-
   getEmptyState() {
     return {
-      roomId: this.roomId || "LOCAL",
+      id: this.roomId || "LOCAL",
       players: [],
       queue: [],
       snapshots: {},
       activeMatch: null,
-      roundCounter: 0,
-      lastEvent: "等待第二位玩家加入后自动开赛",
-      updatedAt: 0,
+      round: 0,
     };
   }
 
-  readState() {
-    if (!this.storageKey) return this.getEmptyState();
-    try {
-      const raw = localStorage.getItem(this.storageKey);
-      return raw ? this.reconcileState(JSON.parse(raw)) : this.getEmptyState();
-    } catch {
-      return this.getEmptyState();
-    }
-  }
+  bindSocketEvents() {
+    if (!this.socket) return;
 
-  writeState(state) {
-    if (!this.storageKey) return;
-    const next = this.reconcileState(state);
-    next.updatedAt = Date.now();
-    localStorage.setItem(this.storageKey, JSON.stringify(next));
-    this.roomState = next;
-    this.channel?.postMessage(next);
-    this.renderRoomUi();
-  }
-
-  handleRemoteState(remoteState) {
-    if (!this.isMultiplayer || !remoteState || remoteState.roomId !== this.roomId) return;
-    if ((remoteState.updatedAt || 0) < (this.roomState.updatedAt || 0)) return;
-    this.roomState = this.reconcileState(remoteState);
-    this.renderRoomUi();
-  }
-
-  handleStorageEvent(event) {
-    if (!this.isMultiplayer || !this.storageKey) return;
-    if (event.key === this.storageKey && event.newValue) this.handleRemoteState(JSON.parse(event.newValue));
-  }
-
-  reconcileState(state) {
-    const now = Date.now();
-    const next = state ? deepClone(state) : this.getEmptyState();
-    next.players = (next.players || []).filter((player, index, list) => list.findIndex((item) => item.id === player.id) === index);
-    next.players = next.players.filter((player) => now - (player.lastSeen || 0) < this.roomTtlMs);
-    next.queue = (next.queue || []).filter((id, index, list) => list.indexOf(id) === index && next.players.some((player) => player.id === id));
-    next.players
-      .slice()
-      .sort((a, b) => a.joinedAt - b.joinedAt)
-      .forEach((player) => {
-        if (!next.queue.includes(player.id)) next.queue.push(player.id);
+    this.socket.on("connect", () => {
+      this.lastEvent = "已连接服务器，等待房间同步";
+      this.socket.emit("room:join", {
+        roomId: this.roomId,
+        player: this.makePlayer(),
       });
-    Object.keys(next.snapshots || {}).forEach((playerId) => {
-      if (!next.players.some((player) => player.id === playerId)) delete next.snapshots[playerId];
+      this.renderRoomUi();
+      this.requestRender();
     });
-    if (
-      next.activeMatch &&
-      (!next.queue.includes(next.activeMatch.defenderId) || !next.queue.includes(next.activeMatch.challengerId))
-    ) {
-      next.activeMatch = null;
-    }
-    if (!next.activeMatch && next.queue.length >= 2) {
-      next.roundCounter = (next.roundCounter || 0) + 1;
-      next.activeMatch = {
-        round: next.roundCounter,
-        defenderId: next.queue[0],
-        challengerId: next.queue[1],
-        startedAt: now,
-        durationMs: this.matchDurationMs,
+
+    this.socket.on("disconnect", () => {
+      this.lastEvent = "连接已断开，正在等待重连";
+      this.renderRoomUi();
+      this.requestRender();
+    });
+
+    this.socket.on("connect_error", () => {
+      this.lastEvent = "无法连接到联机服务器";
+      this.renderRoomUi();
+      this.requestRender();
+    });
+
+    this.socket.on("room:state", (room) => {
+      this.syncRoomState(room);
+    });
+
+    this.socket.on("match:snapshot", ({ playerId, snapshot }) => {
+      this.roomState = {
+        ...this.roomState,
+        snapshots: {
+          ...this.roomState.snapshots,
+          [playerId]: snapshot,
+        },
       };
-      next.lastEvent = `${this.getPlayerName(next, next.queue[0])} 守擂，迎战 ${this.getPlayerName(next, next.queue[1])}`;
+      this.requestRender();
+    });
+
+    this.socket.on("match:resolved", (result) => {
+      this.lastEvent = `${this.getPlayerName(this.roomState, result.winnerId)} 胜出，原因：${result.reason}`;
+      this.requestRender();
+    });
+  }
+
+  syncRoomState(room) {
+    const previousMatch = this.roomState.activeMatch;
+    this.roomState = {
+      id: room.id,
+      players: room.players || [],
+      queue: room.queue || [],
+      snapshots: room.snapshots || {},
+      activeMatch: room.activeMatch || null,
+      round: room.round || 0,
+    };
+    this.lastEvent = this.describeRoomEvent(previousMatch, this.roomState.activeMatch);
+    this.renderRoomUi();
+    this.requestRender();
+  }
+
+  describeRoomEvent(previousMatch, nextMatch) {
+    if (!nextMatch) {
+      return this.roomState.players.length > 1 ? "等待下一场比赛开始" : "等待第二位玩家加入后自动开赛";
     }
-    return next;
-  }
-
-  mutateState(mutator) {
-    if (!this.isMultiplayer) return;
-    const draft = this.readState();
-    mutator(draft);
-    this.writeState(draft);
-  }
-
-  registerLocalPlayer() {
-    const localPlayer = this.makePlayer();
-    this.mutateState((state) => {
-      const existing = state.players.find((player) => player.id === this.localPlayerId);
-      if (existing) {
-        existing.lastSeen = Date.now();
-        existing.name = localPlayer.name;
-      } else {
-        state.players.push(localPlayer);
-        state.queue.push(localPlayer.id);
-      }
-    });
-  }
-
-  refreshPresence() {
-    if (!this.isMultiplayer) return;
-    this.mutateState((state) => {
-      const local = state.players.find((player) => player.id === this.localPlayerId);
-      if (!local) {
-        state.players.push(this.makePlayer());
-        state.queue.push(this.localPlayerId);
-      } else {
-        local.lastSeen = Date.now();
-      }
-    });
-  }
-
-  leaveRoom() {
-    if (!this.isMultiplayer) return;
-    if (this.heartbeat) window.clearInterval(this.heartbeat);
-    this.mutateState((state) => {
-      state.players = state.players.filter((player) => player.id !== this.localPlayerId);
-      state.queue = state.queue.filter((id) => id !== this.localPlayerId);
-      delete state.snapshots[this.localPlayerId];
-      if (
-        state.activeMatch &&
-        (state.activeMatch.defenderId === this.localPlayerId || state.activeMatch.challengerId === this.localPlayerId)
-      ) {
-        state.activeMatch = null;
-      }
-    });
+    if (!previousMatch || previousMatch.round !== nextMatch.round) {
+      return `${this.getPlayerName(this.roomState, nextMatch.defenderId)} 守擂，迎战 ${this.getPlayerName(this.roomState, nextMatch.challengerId)}`;
+    }
+    return this.lastEvent;
   }
 
   renameLocalPlayer() {
@@ -279,11 +243,14 @@ export class TetrisGame {
     const trimmed = nextName?.trim().slice(0, 12);
     if (!trimmed) return;
     localStorage.setItem(`arcadia-player-name-${this.roomId}`, trimmed);
-    this.mutateState((state) => {
-      const local = state.players.find((player) => player.id === this.localPlayerId);
-      if (local) local.name = trimmed;
-      state.lastEvent = `${trimmed} 已更新昵称`;
+    this.socket?.emit("player:rename", {
+      roomId: this.roomId,
+      playerId: this.localPlayerId,
+      name: trimmed,
     });
+    this.lastEvent = `${trimmed} 已更新昵称`;
+    this.renderRoomUi();
+    this.requestRender();
   }
 
   getLocalPlayer() {
@@ -330,14 +297,11 @@ export class TetrisGame {
   }
 
   resolveMatch(winnerId, reason) {
-    this.mutateState((state) => {
-      const match = state.activeMatch;
-      if (!match || ![match.defenderId, match.challengerId].includes(winnerId)) return;
-      const loserId = winnerId === match.defenderId ? match.challengerId : match.defenderId;
-      const middle = state.queue.filter((id) => id !== winnerId && id !== loserId);
-      state.queue = [winnerId, ...middle, loserId];
-      state.activeMatch = null;
-      state.lastEvent = `${this.getPlayerName(state, winnerId)} 胜出，原因：${reason}`;
+    if (!this.roomState.activeMatch) return;
+    this.socket?.emit("match:resolve", {
+      roomId: this.roomId,
+      winnerId,
+      reason,
     });
   }
 
@@ -352,8 +316,17 @@ export class TetrisGame {
     const serialized = JSON.stringify(snapshot);
     if (!force && serialized === this.lastPublishedState) return;
     this.lastPublishedState = serialized;
-    this.mutateState((state) => {
-      state.snapshots[this.localPlayerId] = snapshot;
+    this.roomState = {
+      ...this.roomState,
+      snapshots: {
+        ...this.roomState.snapshots,
+        [this.localPlayerId]: snapshot,
+      },
+    };
+    this.socket?.emit("match:snapshot", {
+      roomId: this.roomId,
+      playerId: this.localPlayerId,
+      snapshot,
     });
   }
 
@@ -387,7 +360,6 @@ export class TetrisGame {
       this.engine.update(dt, this.keysDown, true);
       return;
     }
-    this.roomState = this.readState();
     this.resetForNewRound();
     if (this.isLocalActive()) {
       if (this.keysDown.has("r") || this.keysDown.has("R")) {
@@ -410,7 +382,7 @@ export class TetrisGame {
         if (winnerId) this.resolveMatch(winnerId, "对手提前 Game Over");
       }
     }
-    this.maybeResolveByTimer();
+    if (this.getLocalRole() === "defender") this.maybeResolveByTimer();
   }
 
   drawBoardShell(label, player, snapshot, x, y, width, height, accentColor, controlled) {
@@ -537,7 +509,7 @@ export class TetrisGame {
     this.ctx.fillText(formatCountdown(this.getRemainingMs()), width / 2 - 34, shellY + 30);
     this.ctx.fillStyle = "#8ea4cb";
     this.ctx.font = "500 13px 'Noto Sans SC'";
-    this.ctx.fillText(this.roomState.lastEvent || "等待比赛开始", shellX + 26, shellY + shellHeight - 16);
+    this.ctx.fillText(this.lastEvent || "等待比赛开始", shellX + 26, shellY + shellHeight - 16);
   }
 
   renderRoomUi() {
@@ -610,7 +582,7 @@ export class TetrisGame {
       ["在线人数", this.roomState.players.length],
       ["当前回合", match?.round || 0],
       ["剩余时间", formatCountdown(this.getRemainingMs())],
-      ["当前状态", match ? this.roomState.lastEvent : "等待第二位玩家加入"],
+      ["当前状态", this.lastEvent],
       ["你的身份", this.ui.roomRoleEl.textContent],
     ];
   }
@@ -629,6 +601,7 @@ export class TetrisGame {
       coordinateSystem: "origin top-left, x right, y down, each board 10x20",
       roomId: this.roomId,
       localPlayerId: this.localPlayerId,
+      connected: this.socket?.connected || false,
       role: this.getLocalRole(),
       queue: this.roomState.queue.map((playerId) => ({
         id: playerId,

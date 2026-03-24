@@ -25,9 +25,21 @@ secondPage.on("pageerror", (err) => {
 });
 
 await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+await page.click("#mode-multi-btn");
+await page.waitForFunction(() => {
+  const state = JSON.parse(window.render_game_to_text());
+  return state.mode === "tetris-multiplayer" && state.connected && state.roomId;
+});
 const roomState = JSON.parse(await page.evaluate(() => window.render_game_to_text()));
 await secondPage.goto(`http://127.0.0.1:4173?room=${roomState.roomId}`, { waitUntil: "networkidle" });
-await secondPage.waitForTimeout(250);
+await secondPage.waitForFunction(() => {
+  const state = JSON.parse(window.render_game_to_text());
+  return state.mode === "tetris-multiplayer" && state.connected && state.queue.length >= 2;
+});
+await page.waitForFunction(() => {
+  const state = JSON.parse(window.render_game_to_text());
+  return state.mode === "tetris-multiplayer" && state.queue.length >= 2;
+});
 
 const states = {};
 
