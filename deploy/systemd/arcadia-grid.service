@@ -1,0 +1,17 @@
+[Unit]
+Description=Arcadia Grid Nest Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_ROOT__
+ExecStart=__NODE_BIN__ __APP_ROOT__/dist/main.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=__BACKEND_PORT__
+User=__RUN_USER__
+Group=__RUN_GROUP__
+
+[Install]
+WantedBy=multi-user.target

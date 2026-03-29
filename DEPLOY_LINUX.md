@@ -19,6 +19,41 @@
 
 这样浏览器只访问一个域名，不需要额外暴露 `3001` 端口。
 
+仓库里已经补充了以下部署模板：
+
+- `deploy/nginx/arcadia-grid.conf`
+- `deploy/systemd/arcadia-grid.service`
+- `scripts/deploy-linux.sh`
+
+如果你的目标机器已经安装了 `Node.js`、`nginx`、`systemd`，可以直接在项目根目录执行：
+
+```bash
+APP_ROOT=/srv/arcadia-grid \
+SERVER_NAME=your-domain.com \
+BACKEND_PORT=3001 \
+RUN_USER=www-data \
+RUN_GROUP=www-data \
+bash scripts/deploy-linux.sh
+```
+
+如果是本机部署，没有域名，推荐明确写成：
+
+```bash
+APP_ROOT=/srv/arcadia-grid \
+SERVER_NAME="localhost 127.0.0.1" \
+BACKEND_PORT=3001 \
+RUN_USER=www-data \
+RUN_GROUP=www-data \
+bash scripts/deploy-linux.sh
+```
+
+说明：
+
+- 该脚本会执行 `npm ci` 和 `npm run build:backend`
+- 然后生成并安装 `systemd` 与 `nginx` 配置
+- 最后自动重启服务并执行一次本机健康检查
+- 如果当前 shell 的 `node` 来自 `nvm`，建议显式传入系统可执行路径，例如 `NODE_BIN=/usr/local/bin/node`
+
 ## 2. 服务器准备
 
 以 Ubuntu 为例：
